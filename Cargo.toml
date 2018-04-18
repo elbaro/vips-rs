@@ -1,0 +1,14 @@
+[package]
+name = "vips-rs"
+version = "0.1.0-alpha.1"
+authors = ["elbaro <elbaro@github>"]
+description = "A rust binding to libvips."
+keywords = ["vips", "image", "libvips", "vips-rs"]
+documentation = "https://docs.rs/vips-rs"
+repository = "https://github.com/elbaro/vips-rs"
+readme = "README.md"
+categories = ["multimedia::images"]
+license = "MIT"
+
+[dependencies]
+vips-sys = "0.1.0"
