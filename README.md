@@ -4,6 +4,7 @@ A binding to `libvips`.
 
 ## Notes
 
+- This crate is rename from "vips-rs" to "vips".
 - The API is unstable.
 - Only a portion of `libvips` is implemented.
 If you cannot find an interface you need, you can use `vips-sys` directly.

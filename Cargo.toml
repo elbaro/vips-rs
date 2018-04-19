@@ -12,3 +12,4 @@ license = "MIT"
 
 [dependencies]
 vips-sys = "0.1.0"
+lazy_static = "1.0.0"
