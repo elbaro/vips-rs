@@ -11,5 +11,6 @@ categories = ["multimedia::images"]
 license = "MIT"
 
 [dependencies]
-vips-sys = "0.1.0"
+#vips-sys = "0.1.0"
+vips-sys = {git = "https://github.com/elbaro/vips-sys.git"}
 lazy_static = "1.0.0"
