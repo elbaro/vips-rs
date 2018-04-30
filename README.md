@@ -40,7 +40,7 @@ fn main() {
 
 #### Terms
 - band: channel
-- image: image file / buffer (RGB) / ..
+- image: image file / memory (RGB) / buffer (jpeg, png) / ..
 - region: sub-area of image. actually read pixels from a image.
 - partial image: a function to generate pixels for a rectangular region
 
@@ -53,11 +53,70 @@ fn main() {
 The binding provides `VipsInstance` for RAII. One peculiar behavior of vips is that after calling `vips_shutdown`, you should not call `vips_init` again. To prevent users from doing this, you can create an instance `VipsInstance` only once in your program's lifetime. When you call `VipsInstance::new` second time (even after the first instance is destroyed), you will get `Result::Err`.
 
 #### Memory Management
-Everything in `libvips` is gobject. The binding classes call `g_object_unref` on Drop.
+Everything in `libvips` is gobject. The binding classes call  g_object_unref` on Drop.
 
-#### In-place operation
-Vips operations have no side effect. In other words, no in-place operation.
-However it shares the data and adjusts pointers.
+#### No in-place operation
+Vips operations have no side effect. However it may share the data between images to avoid copying.
 
-#### VipsImage
+```
+let img = {
+    let large_img1 = VipsImage::new..(..);
+    let large_img2 = small_change(&large_img1); // fast
+    large_img2
+}
+// large_img1 is dropped,
+// but its pixel data is being used by large_img2
+```
+
+```
+{
+    let data = ..;
+    let img1 = VipsImage::new_from_reference(&data);
+    let img2 = img1.resize(..);
+
+    // data needs to outlive img1
+    // img1 needs to outlive img2
+}
+```
+The input image of any operation needs to outlive the output image.
+
+
+#### Memory vs Buffer
+You can find these words in API names. For example, there are `vips_image_new_from_memory` and `vips_image_new_from_buffer`. They are not the same.
+
+- memory is a simple (e.g. RGB) array
+- buffer is a formatted (jpeg, png, etc) memory data
+
+Some operations directly work on buffer. For example, jpeg buffer can be shrinked during the decoding.
+
+#### VipsImage: from owned memory
+
+Creating a new VipsImage from owned data is easy and safe.
+```
+{
+    let vec:Vec<u8> = ..;
+    // transfer vec to VipsImage
+    // VipsImage transfers pixel data to
+    let img = VipsImage::from_memory(vec, width, height, ..);
+}
+// img is destroyed. pixel data may not be released.
+```
+
+Creating a new VipsImage from reference is tricky.
+```
+{
+    let vec:Vec<u8> = ..;
+    let img = VipsImage;:from_memory_reference(&vec[..], width, height, ..);
+}
+// img is destroyed.
+```
+
 `VipsImage` in `libvips` is not a pixel tensor like `cv::Mat` or `ndarray`.
+It may represent an image file, owns a pixel data in memory, or
+
+#### VipsImage: from memory
+
+
+
+#### VipsImage: from buffer
+

@@ -16,8 +16,6 @@ pub use instance::VipsInstance;
 
 mod image;
 pub use image::VipsImage;
-pub use image::VipsBufferImage;
-pub use image::VipsImageTrait;
 
 mod buffer;
 pub use buffer::VipsBuffer;
