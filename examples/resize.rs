@@ -2,14 +2,26 @@ extern crate vips;
 
 use vips::*;
 
+fn resize_file() {
+    let thumbnail = {
+        let img:VipsImage = VipsImage::from_file("kodim01.png").unwrap();
+        img.thumbnail(123, 234, VipsSize::VIPS_SIZE_FORCE).unwrap()
+    };
+
+    thumbnail.write_to_file("kodim01_123x234.png").unwrap();
+}
+
+fn resize_mem() {
+    let pixels = vec![0;256*256*3];
+    let thumbnail = {
+        let img:VipsImage = VipsImage::from_memory_reference(&pixels, 256, 256, 3, VipsBandFormat::VIPS_FORMAT_UCHAR).unwrap();
+        img.thumbnail(234, 123, VipsSize::VIPS_SIZE_FORCE).unwrap()
+    };
+    thumbnail.write_to_file("black.png").unwrap();
+}
+
 fn main() {
     let _instance = VipsInstance::new("app_test", true).unwrap();
-    let img = VipsImage::from_file("kodim01.png").unwrap();
-    let img = img.thumbnail(123, 234, VipsSize::VIPS_SIZE_FORCE).unwrap();
-    img.write_to_file("kodim01_123x234.png").unwrap();
+    resize_file();
+    resize_mem();
 }
-//
-//#[test]
-//fn unique_instance() {
-//    assert!(VipsInstance::new("app_test", true).is_err());
-//}

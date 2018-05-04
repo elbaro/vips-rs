@@ -10,30 +10,10 @@ use std::ptr::null_mut;
 use std::marker::PhantomData;
 use std::os::raw::c_int;
 
-trait VipsImageTrait<'a> {
-    type OutputImage: 'a;
-
-    fn ff() -> Result<Self::OutputImage, Box<Error>> {
-        Err("abc".into())
-    }
-}
-
-impl<'a> VipsImageTrait<'a> for VipsImage<'a> {
-    type OutputImage = VipsImage<'a>;
-}
-
-impl<'a, 'b> VipsImageTrait<'b> for VipsScopedImage {
-    type OutputImage = VipsScopedImage;
-}
-
-pub struct VipsScopedImage {
-//    marker: PhantomData<&'a ()>,
-}
-
 
 pub struct VipsImage<'a> {
     pub c: *mut ffi::VipsImage,
-    marker: PhantomData<&'a ()>,
+    marker: PhantomData<&'a()>,
 }
 
 impl<'a> Drop for VipsImage<'a> {
@@ -43,24 +23,6 @@ impl<'a> Drop for VipsImage<'a> {
         }
     }
 }
-
-
-fn result<'a>(ptr: *mut ffi::VipsImage) -> Result<VipsImage<'a>, Box<Error>> {
-    if ptr.is_null() {
-        Err(current_error().into())
-    } else {
-        Ok(VipsImage { c: ptr, marker: PhantomData })
-    }
-}
-
-fn result_with_ret<'a>(ptr: *mut ffi::VipsImage, ret: c_int) -> Result<VipsImage<'a>, Box<Error>> {
-    if ret == 0 {
-        Ok(VipsImage { c: ptr, marker: PhantomData })
-    } else {
-        Err(current_error().into())
-    }
-}
-
 
 impl<'a> VipsImage<'a> {
     pub fn new() -> Result<VipsImage<'a>, Box<Error>> {
@@ -75,12 +37,29 @@ impl<'a> VipsImage<'a> {
 
     pub fn from_file<S: Into<Vec<u8>>>(path: S) -> Result<VipsImage<'a>, Box<Error>> {
         let path = CString::new(path)?;
-
         let c = unsafe { ffi::vips_image_new_from_file(path.as_ptr(), null() as *const c_char) };
         result(c)
     }
 
-    pub fn from_memory(buf: &'a [u8], width: u32, height: u32, bands: u8, format: VipsBandFormat) -> Result<VipsImage<'a>, Box<Error>> {
+    pub fn from_memory(buf: Vec<u8>, width: u32, height: u32, bands: u8, format: VipsBandFormat) -> Result<VipsImage<'a>, Box<Error>> {
+        let c = unsafe {
+            ffi::vips_image_new_from_memory(
+                buf.as_ptr() as *const c_void,
+                buf.len(),
+                width as i32,
+                height as i32,
+                bands as i32,
+                format,
+            )
+        };
+
+        ::std::mem::forget(buf);
+        // TODO: add callback
+
+        result(c)
+    }
+
+    pub fn from_memory_reference(buf: &'a [u8], width: u32, height: u32, bands: u8, format: VipsBandFormat) -> Result<VipsImage, Box<Error>> {
         let c = unsafe {
             ffi::vips_image_new_from_memory(
                 buf.as_ptr() as *const c_void,
@@ -96,7 +75,7 @@ impl<'a> VipsImage<'a> {
     }
 
     // formatted
-    pub fn from_buffer(buf: &'a [u8]) -> Result<VipsImage<'a>, Box<Error>> {
+    pub fn from_buffer(buf: &'a [u8]) -> Result<VipsImage, Box<Error>> {
         let c = unsafe {
             ffi::vips_image_new_from_buffer(buf.as_ptr() as *const c_void, buf.len(), null(), null() as *const c_char)
         };
@@ -121,7 +100,7 @@ impl<'a> VipsImage<'a> {
     }
 
     // default: block shrink + lanczos3
-    fn resize(&self, scale: f64, vscale: Option<f64>, kernel: Option<VipsKernel>) -> Result<VipsImage<'a>, Box<Error>> {
+    fn resize(&self, scale: f64, vscale: Option<f64>, kernel: Option<VipsKernel>) -> Result<VipsImage, Box<Error>> {
         let mut out_ptr: *mut ffi::VipsImage = null_mut();
         let ret = unsafe {
             ffi::vips_resize(
@@ -137,7 +116,7 @@ impl<'a> VipsImage<'a> {
         };
         result_with_ret(out_ptr, ret)
     }
-    fn resize_to_size(&self, width: u32, height: Option<u32>, kernel: Option<VipsKernel>) -> Result<VipsImage<'a>, Box<Error>> {
+    fn resize_to_size(&self, width: u32, height: Option<u32>, kernel: Option<VipsKernel>) -> Result<VipsImage, Box<Error>> {
         self.resize(
             width as f64 / self.width() as f64,
             height.map(|h| h as f64 / self.height() as f64),
@@ -186,5 +165,21 @@ impl<'a> VipsImage<'a> {
             let vec = boxed_slice.into_vec();
             vec
         }
+    }
+}
+
+fn result<'a>(ptr: *mut ffi::VipsImage) -> Result<VipsImage<'a>, Box<Error>> {
+    if ptr.is_null() {
+        Err(current_error().into())
+    } else {
+        Ok(VipsImage { c: ptr, marker: PhantomData })
+    }
+}
+
+fn result_with_ret<'a>(ptr: *mut ffi::VipsImage, ret: c_int) -> Result<VipsImage<'a>, Box<Error>> {
+    if ret == 0 {
+        Ok(VipsImage { c: ptr, marker: PhantomData })
+    } else {
+        Err(current_error().into())
     }
 }
