@@ -24,6 +24,16 @@ impl<'a> Drop for VipsImage<'a> {
     }
 }
 
+//pub unsafe fn deallocate_array(ptr: *mut u8, len: usize) {
+//    drop(Box::from_raw(std::slice::from_raw_parts_mut(ptr, len)));
+//}
+
+pub unsafe extern "C" fn image_postclose(ptr: *mut ffi::VipsImage, user_data: *mut c_void) {
+    let b:Box<Box<[u8]>> = Box::from_raw(user_data as *mut Box<[u8]>);
+    println!(" >>>> releasing slice of len {}", b.len());
+    drop(b);
+}
+
 impl<'a> VipsImage<'a> {
     pub fn new() -> Result<VipsImage<'a>, Box<Error>> {
         let c = unsafe { ffi::vips_image_new() };
@@ -42,10 +52,11 @@ impl<'a> VipsImage<'a> {
     }
 
     pub fn from_memory(buf: Vec<u8>, width: u32, height: u32, bands: u8, format: VipsBandFormat) -> Result<VipsImage<'a>, Box<Error>> {
+        let b:Box<[_]> = buf.into_boxed_slice();
         let c = unsafe {
             ffi::vips_image_new_from_memory(
-                buf.as_ptr() as *const c_void,
-                buf.len(),
+                b.as_ptr() as *const c_void,
+                b.len(),
                 width as i32,
                 height as i32,
                 bands as i32,
@@ -53,8 +64,17 @@ impl<'a> VipsImage<'a> {
             )
         };
 
-        ::std::mem::forget(buf);
-        // TODO: add callback
+        let bb:Box<Box<_>> = Box::new(b);
+        let raw : *mut c_void = Box::into_raw(bb) as *mut c_void;
+
+        unsafe {
+            let callback: unsafe extern "C" fn() = ::std::mem::transmute(image_postclose as *const());
+            ffi::g_signal_connect_data(
+                c as *mut c_void, "postclose\0".as_ptr() as *const c_char,
+                Some(callback),
+                raw,
+                None, ffi::GConnectFlags::G_CONNECT_AFTER);
+        };
 
         result(c)
     }

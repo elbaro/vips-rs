@@ -4,15 +4,14 @@ set -ex
 
 # TODO This is the "test phase", tweak it as you see fit
 main() {
-    cargo build --target $TARGET
-    cargo build --target $TARGET --release
+    cargo build
+    cargo build --release
 
     if [ ! -z $DISABLE_TESTS ]; then
         return
     fi
 
-    cargo test --target $TARGET
-    cargo test --target $TARGET --release
+    cargo test
 }
 
 # we don't run the "test phase" when doing deploys
