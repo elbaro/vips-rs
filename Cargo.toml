@@ -17,3 +17,6 @@ lazy_static = "1.0.0"
 
 [dev-dependencies]
 compiletest_rs = "*"
+
+[package.metadata.docs.rs]
+features = [ "docs" ]
