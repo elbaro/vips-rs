@@ -57,6 +57,7 @@ deploy:
   github_token: $gh
   keep_history: true
   local_dir: target/doc
+  verbose: true
   on:
     branch: master
 
@@ -70,3 +71,7 @@ branches:
     # release tags
     - /^v\d+\.\d+\.\d+.*$/
     - master
+
+notifications:
+  email:
+    on_success: never
