@@ -37,7 +37,7 @@ before_install:
   - ./autogen.sh
   - make
   - sudo make install
-  - ldconfig
+  - sudo ldconfig
   - cd ..
   - rustup self update
 
