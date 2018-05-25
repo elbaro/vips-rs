@@ -37,6 +37,7 @@ before_install:
   - ./autogen.sh
   - make
   - sudo make install
+  - ldconfig
   - cd ..
   - rustup self update
 
@@ -44,7 +45,8 @@ install:
   - source ~/.cargo/env || true
 
 script:
-  - bash ci/script.sh
+  - cargo build
+  - cargo test
   - cargo doc && echo "<meta http-equiv=refresh content=0;url=`echo vips_rs | cut -d '/' -f 2`/index.html>" > target/doc/index.html
 
 after_script: set +e
