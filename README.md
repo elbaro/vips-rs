@@ -4,7 +4,7 @@
 
 This crate provides bindings to libvips.
 
-[Documentation](https://elbaro.github.io/vips-rs/vips_rs/)
+[Documentation](https://elbaro.github.io/vips-rs/vips/)
 
 A binding to `libvips`.
 
