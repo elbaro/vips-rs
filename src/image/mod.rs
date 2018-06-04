@@ -24,17 +24,18 @@ impl<'a> Drop for VipsImage<'a> {
     }
 }
 
-//pub unsafe fn deallocate_array(ptr: *mut u8, len: usize) {
-//    drop(Box::from_raw(std::slice::from_raw_parts_mut(ptr, len)));
-//}
-
+// callback used by gobjects
 pub unsafe extern "C" fn image_postclose(ptr: *mut ffi::VipsImage, user_data: *mut c_void) {
     let b:Box<Box<[u8]>> = Box::from_raw(user_data as *mut Box<[u8]>);
-    println!(" >>>> releasing slice of len {}", b.len());
     drop(b);
 }
 
 impl<'a> VipsImage<'a> {
+
+    //
+    // ─── CONSTRUCTORS ───────────────────────────────────────────────────────────────
+    //
+
     pub fn new() -> Result<VipsImage<'a>, Box<Error>> {
         let c = unsafe { ffi::vips_image_new() };
         result(c)
@@ -103,6 +104,187 @@ impl<'a> VipsImage<'a> {
         result(c)
     }
 
+    //
+    // ─── DRAW ───────────────────────────────────────────────────────────────────────
+    //
+
+    pub fn draw_rect(&mut self, ink: &[f64], left:u32, top:u32, width:u32, height:u32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_rect(
+                self.c as *mut ffi::VipsImage,
+                ink.as_ptr() as *mut f64,
+                ink.len() as i32, left as i32,
+                top as i32,
+                width as i32,
+                height as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_rect1(&mut self, ink: f64, left:u32, top:u32, width:u32, height:u32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_rect1(
+                self.c as *mut ffi::VipsImage,
+                ink,
+                left as i32,
+                top as i32,
+                width as i32,
+                height as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_point(&mut self, ink: &[f64],x:i32,y:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_point(
+                self.c as *mut ffi::VipsImage,
+                ink.as_ptr() as *mut f64,
+                ink.len() as i32,
+                x as i32,
+                y as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_point1(&mut self, ink: f64,x:i32,y:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_point1(
+                self.c as *mut ffi::VipsImage,
+                ink,
+                x as i32,
+                y as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_image(&mut self, img:&VipsImage,x:i32,y:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_image(
+                self.c as *mut ffi::VipsImage,
+                img.c as *mut ffi::VipsImage,
+                x as i32,
+                y as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_mask(&mut self, ink: &[f64], mask:&VipsImage,x:i32,y:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_mask(
+                self.c as *mut ffi::VipsImage,
+                ink.as_ptr() as *mut f64,
+                ink.len() as i32,
+                mask.c as *mut ffi::VipsImage,
+                x as i32,
+                y as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_mask1(&mut self, ink: f64,mask:&VipsImage,x:i32,y:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_mask1(
+                self.c as *mut ffi::VipsImage,
+                ink,
+                mask.c as *mut ffi::VipsImage,
+                x as i32,
+                y as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_line(&mut self, ink: &[f64],x1:i32,y1:i32,x2:i32,y2:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_line(
+                self.c as *mut ffi::VipsImage,
+                ink.as_ptr() as *mut f64,
+                ink.len() as i32,
+                x1 as i32,
+                y1 as i32,
+                x2 as i32,
+                y2 as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_line1(&mut self, ink: f64,x1:i32,y1:i32,x2:i32,y2:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_line1(
+                self.c as *mut ffi::VipsImage,
+                ink,
+                x1 as i32,
+                y1 as i32,
+                x2 as i32,
+                y2 as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_circle(&mut self, ink: &[f64],cx:i32,cy:i32,r:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_circle(
+                self.c as *mut ffi::VipsImage,
+                ink.as_ptr() as *mut f64,
+                ink.len() as i32,
+                cx as i32,
+                cy as i32,
+                r as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_circle1(&mut self, ink: f64,cx:i32,cy:i32,r:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_circle1(
+                self.c as *mut ffi::VipsImage,
+                ink,
+                cx as i32,
+                cy as i32,
+                r as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_flood(&mut self, ink: &[f64],x:i32,y:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_flood(
+                self.c as *mut ffi::VipsImage,
+                ink.as_ptr() as *mut f64,
+                ink.len() as i32,
+                x as i32,
+                y as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_flood1(&mut self, ink: f64,x:i32,y:i32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_flood1(
+                self.c as *mut ffi::VipsImage,
+                ink,
+                x as i32,
+                y as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+    pub fn draw_smudge(&mut self, left:u32, top:u32, width:u32, height:u32) -> Result<(), Box<Error>> {
+        let ret = unsafe {
+            ffi::vips_draw_smudge(
+                self.c as *mut ffi::VipsImage,
+                left as i32,
+                top as i32,
+                width as i32,
+                height as i32,
+                null() as *const c_char)
+        };
+        result_draw(ret)
+    }
+
+    //
+    // ─── PROPERTIES ─────────────────────────────────────────────────────────────────
+    //
+
     fn width(&self) -> u32 {
         unsafe { (*self.c).Xsize as u32 }
     }
@@ -110,6 +292,10 @@ impl<'a> VipsImage<'a> {
     fn height(&self) -> u32 {
         unsafe { (*self.c).Ysize as u32 }
     }
+
+    //
+    // ─── RESIZE ─────────────────────────────────────────────────────────────────────
+    //
 
     pub fn thumbnail(&self, width: u32, height: u32, size: VipsSize) -> Result<VipsImage<'a>, Box<Error>> {
         let mut out_ptr: *mut ffi::VipsImage = null_mut();
@@ -158,6 +344,10 @@ impl<'a> VipsImage<'a> {
         unimplemented!();
     }
 
+    //
+    // ─── IO ─────────────────────────────────────────────────────────────────────────
+    //
+
     fn jpegsave<S: Into<Vec<u8>>>(&mut self, path: S) -> Result<(), Box<Error>> {
         let path = CString::new(path)?;
         let ret = unsafe { ffi::vips_jpegsave(self.c as *mut ffi::VipsImage, path.as_ptr(), null() as *const c_char) };
@@ -175,6 +365,10 @@ impl<'a> VipsImage<'a> {
             _ => Err(current_error().into()),
         }
     }
+
+    //
+    // ─── CONVERT ────────────────────────────────────────────────────────────────────
+    //
 
     fn to_vec(&self) -> Vec<u8> {
         unsafe {
@@ -201,5 +395,13 @@ fn result_with_ret<'a>(ptr: *mut ffi::VipsImage, ret: c_int) -> Result<VipsImage
         Ok(VipsImage { c: ptr, marker: PhantomData })
     } else {
         Err(current_error().into())
+    }
+}
+
+fn result_draw(ret: ::std::os::raw::c_int) -> Result<(), Box<Error>> {
+    match ret {
+        0 => Ok(()),
+        -1 => Err(current_error().into()),
+        _ => Err("Unknown error from libvips".into())
     }
 }

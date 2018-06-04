@@ -18,4 +18,12 @@ impl<'a> VipsBuffer for &'a [u8] {
             Ok(out)
         }
     }
+
+    // pub fn jpegload(&self) -> Result<VipsImage, Box<Error>> {
+    //     let mut out = VipsImage::new_memory()?;
+    //     unsafe {
+    //         ffi::vips_jpegload_buffer(self.as_mut_ptr() as *mut c_void, buf.len(), &mut out.c);
+    //     }
+    //     Ok(out)
+    // }
 }

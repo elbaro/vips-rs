@@ -5,8 +5,6 @@ extern crate vips_sys as ffi;
 #[macro_use]
 extern crate lazy_static;
 
-use std::os::raw::c_void;
-
 // re-exports modules
 mod common;
 pub use common::*;
@@ -67,19 +65,8 @@ pub use ffi::VipsPCS;
 pub use ffi::VipsCombineMode;
 pub use ffi::VipsBBits;
 
-use std::error::Error;
+pub use ffi::vips_call as call;
 
-
-pub fn thumbnail_buffer(data: &[u8], width:u32, height:u32) -> VipsImage {
-//        ffi::vips_thumbnail_buffer(data.as_ptr() as *const c_void, data.len(), width, )
-    unimplemented!();
-
-}
-
-pub fn jpegload_buffer(buf: &mut [u8]) -> Result<VipsImage, Box<Error>> {
-    let mut out = VipsImage::new_memory()?;
-    unsafe {
-        ffi::vips_jpegload_buffer(buf.as_mut_ptr() as *mut c_void, buf.len(), &mut out.c);
-    }
-    Ok(out)
+extern "C" {
+    pub fn vips_call(operation_name: *const ::std::os::raw::c_char, ...) -> ::std::os::raw::c_int;
 }
