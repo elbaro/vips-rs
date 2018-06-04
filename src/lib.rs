@@ -15,8 +15,12 @@ pub use instance::VipsInstance;
 mod image;
 pub use image::VipsImage;
 
+mod interpolate;
+pub use interpolate::VipsInterpolate;
+
 mod buffer;
 pub use buffer::VipsBuffer;
+
 
 // re-exports native enums
 pub use ffi::VipsPrecision;
@@ -64,6 +68,7 @@ pub use ffi::VipsIntent;
 pub use ffi::VipsPCS;
 pub use ffi::VipsCombineMode;
 pub use ffi::VipsBBits;
+
 
 pub use ffi::vips_call as call;
 

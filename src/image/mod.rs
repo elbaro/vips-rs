@@ -1,5 +1,5 @@
 use ffi;
-use ffi::{VipsSize, VipsKernel, VipsBandFormat, VipsCombineMode};
+use ffi::{VipsSize, VipsKernel, VipsBandFormat, VipsCombineMode, VipsDirection};
 use std::error::Error;
 use std::os::raw::c_char;
 use std::ptr::null;
@@ -9,6 +9,7 @@ use common::current_error;
 use std::ptr::null_mut;
 use std::marker::PhantomData;
 use std::os::raw::c_int;
+use ::VipsInterpolate;
 
 
 pub struct VipsImage<'a> {
@@ -286,6 +287,193 @@ impl<'a> VipsImage<'a> {
         };
         result_draw(ret)
     }
+
+    //
+    // ─── MOSAIC ─────────────────────────────────────────────────────────────────────
+    //
+
+    pub fn merge(&self, another:&VipsImage, direction:VipsDirection, dx:i32, dy:i32, mblend:Option<i32>) -> Result<VipsImage<'a>, Box<Error>> {
+        let mut out_ptr: *mut ffi::VipsImage = null_mut();
+        let ret = unsafe {
+            ffi::vips_merge(
+                self.c as *mut ffi::VipsImage,
+                another.c as *mut ffi::VipsImage,
+                &mut out_ptr,
+                direction,
+                dx,
+                dy,
+                "mblend\0".as_ptr(),
+                mblend.unwrap_or(-1),
+                null() as *const c_char)
+        };
+        result_with_ret(out_ptr, ret)
+    }
+
+    pub fn mosaic(&self, sec: &VipsImage, direction: VipsDirection, xref: i32, yref: i32, xsec: i32, ysec: i32, bandno: Option<i32>, hwindow: Option<i32>, harea: Option<i32>, mblend: Option<i32>) -> Result<VipsImage, Box<Error>> {
+        let mut out_ptr: *mut ffi::VipsImage = null_mut();
+        let ret = unsafe {
+            ffi::vips_mosaic(
+                self.c as *mut ffi::VipsImage,
+                sec.c as *mut ffi::VipsImage,
+                &mut out_ptr,
+                direction,
+                xref,
+                yref,
+                xsec,
+                ysec,
+                "bandno\0".as_ptr(),
+                bandno.unwrap_or(0),
+                "hwindow\0".as_ptr(),
+                hwindow.unwrap_or(1),
+                "harea\0".as_ptr(),
+                harea.unwrap_or(1),
+                "mblend\0".as_ptr(),
+                mblend.unwrap_or(-1),
+                null() as *const c_char)
+        };
+        result_with_ret(out_ptr, ret)
+    }
+
+    pub fn mosaic1(&self, sec: &VipsImage, direction: VipsDirection, xr1: i32, yr1: i32, xs1: i32, ys1: i32, xr2: i32, yr2: i32, xs2: i32, ys2: i32, search: Option<bool>, hwindow: Option<i32>, harea: Option<i32>, interpolate: Option<VipsInterpolate>, mblend: Option<i32>, bandno: Option<i32>) -> Result<VipsImage, Box<Error>> {
+        let mut out_ptr: *mut ffi::VipsImage = null_mut();
+        let ret = unsafe {
+            match interpolate {
+                Some(interpolate) => ffi::vips_mosaic1(
+                    self.c,
+                    sec.c,
+                    &mut out_ptr,
+                    direction,
+                    xr1,
+                    yr1,
+                    xs1,
+                    ys1,
+                    xr2,
+                    yr2,
+                    xs2,
+                    ys2,
+                    "search\0".as_ptr(),
+                    search.unwrap_or(false) as i32,
+                    "hwindow\0".as_ptr(),
+                    hwindow.unwrap_or(1),
+                    "harea\0".as_ptr(),
+                    harea.unwrap_or(1),
+                    "interpolate\0".as_ptr(),
+                    interpolate.c,
+                    "mblend\0".as_ptr(),
+                    mblend.unwrap_or(-1),
+                    "bandno\0".as_ptr(),
+                    bandno.unwrap_or(0),
+                    null() as *const c_char),
+                None => ffi::vips_mosaic1(
+                    self.c as *mut ffi::VipsImage,
+                    sec.c as *mut ffi::VipsImage,
+                    &mut out_ptr,
+                    direction,
+                    xr1,
+                    yr1,
+                    xs1,
+                    ys1,
+                    xr2,
+                    yr2,
+                    xs2,
+                    ys2,
+                    "search\0".as_ptr(),
+                    search.unwrap_or(false) as i32,
+                    "hwindow\0".as_ptr(),
+                    hwindow.unwrap_or(1),
+                    "harea\0".as_ptr(),
+                    harea.unwrap_or(1),
+                    "mblend\0".as_ptr(),
+                    mblend.unwrap_or(-1),
+                    "bandno\0".as_ptr(),
+                    bandno.unwrap_or(0),
+                    null() as *const c_char)
+            }
+
+        };
+        result_with_ret(out_ptr, ret)
+    }
+
+    pub fn match_(&self, sec: &VipsImage, xr1: i32, yr1: i32, xs1: i32, ys1: i32, xr2: i32, yr2: i32, xs2: i32, ys2: i32, search: Option<bool>, hwindow: Option<i32>, harea: Option<i32>, interpolate: Option<VipsInterpolate>) -> Result<VipsImage, Box<Error>> {
+        let mut out_ptr: *mut ffi::VipsImage = null_mut();
+        let ret = unsafe {
+            match interpolate {
+                Some(interpolate) => ffi::vips_match(
+                    self.c as *mut ffi::VipsImage,
+                    sec.c as *mut ffi::VipsImage,
+                    &mut out_ptr,
+                    xr1,
+                    yr1,
+                    xs1,
+                    ys1,
+                    xr2,
+                    yr2,
+                    xs2,
+                    ys2,
+                    "search".as_ptr(),
+                    search.unwrap_or(false) as i32,
+                    "hwindow".as_ptr(),
+                    hwindow.unwrap_or(1),
+                    "harea".as_ptr(),
+                    harea.unwrap_or(1),
+                    "interpolate".as_ptr(),
+                    interpolate.c as *mut ffi::VipsInterpolate,
+                    null() as *const c_char),
+                None => ffi::vips_match(
+                    self.c as *mut ffi::VipsImage,
+                    sec.c as *mut ffi::VipsImage,
+                    &mut out_ptr,
+                    xr1,
+                    yr1,
+                    xs1,
+                    ys1,
+                    xr2,
+                    yr2,
+                    xs2,
+                    ys2,
+                    "search".as_ptr(),
+                    search.unwrap_or(false) as i32,
+                    "hwindow".as_ptr(),
+                    hwindow.unwrap_or(1),
+                    "harea".as_ptr(),
+                    harea.unwrap_or(1),
+                    null() as *const c_char)
+            }
+
+        };
+        result_with_ret(out_ptr, ret)
+    }
+
+    pub fn globalbalance(&self, gamma: Option<f64>, int_output: Option<bool>) -> Result<VipsImage, Box<Error>> {
+        let mut out_ptr: *mut ffi::VipsImage = null_mut();
+        let ret = unsafe {
+            ffi::vips_globalbalance(
+                self.c as *mut ffi::VipsImage,
+                &mut out_ptr,
+                "gamma".as_ptr(),
+                gamma.unwrap_or(1.6),
+                "int_output".as_ptr(),
+                int_output.unwrap_or(false) as i32,
+                null() as *const c_char)
+        };
+        result_with_ret(out_ptr, ret)
+    }
+
+    pub fn remosaic(&self, old_str: &str, new_str: &str) -> Result<VipsImage, Box<Error>> {
+        let old_str = CString::new(old_str)?;
+        let new_str = CString::new(new_str)?;
+        let mut out_ptr: *mut ffi::VipsImage = null_mut();
+        let ret = unsafe {
+            ffi::vips_remosaic(
+                self.c as *mut ffi::VipsImage,
+                &mut out_ptr,
+                old_str.as_ptr(),
+                new_str.as_ptr(),
+                null() as *const c_char)
+        };
+        result_with_ret(out_ptr, ret)
+    }
+
 
     //
     // ─── PROPERTIES ─────────────────────────────────────────────────────────────────
