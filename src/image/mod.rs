@@ -1,5 +1,5 @@
 use ffi;
-use ffi::{VipsSize, VipsKernel, VipsBandFormat};
+use ffi::{VipsSize, VipsKernel, VipsBandFormat, VipsCombineMode};
 use std::error::Error;
 use std::os::raw::c_char;
 use std::ptr::null;
@@ -157,13 +157,15 @@ impl<'a> VipsImage<'a> {
         };
         result_draw(ret)
     }
-    pub fn draw_image(&mut self, img:&VipsImage,x:i32,y:i32) -> Result<(), Box<Error>> {
+    pub fn draw_image(&mut self, img:&VipsImage,x:i32,y:i32,mode:VipsCombineMode) -> Result<(), Box<Error>> {
         let ret = unsafe {
             ffi::vips_draw_image(
                 self.c as *mut ffi::VipsImage,
                 img.c as *mut ffi::VipsImage,
                 x as i32,
                 y as i32,
+                "mode\0".as_ptr(),
+                mode,
                 null() as *const c_char)
         };
         result_draw(ret)
@@ -220,7 +222,7 @@ impl<'a> VipsImage<'a> {
         };
         result_draw(ret)
     }
-    pub fn draw_circle(&mut self, ink: &[f64],cx:i32,cy:i32,r:i32) -> Result<(), Box<Error>> {
+    pub fn draw_circle(&mut self, ink: &[f64],cx:i32,cy:i32,r:i32,fill:bool) -> Result<(), Box<Error>> {
         let ret = unsafe {
             ffi::vips_draw_circle(
                 self.c as *mut ffi::VipsImage,
@@ -229,11 +231,13 @@ impl<'a> VipsImage<'a> {
                 cx as i32,
                 cy as i32,
                 r as i32,
+                "fill\0".as_ptr(),
+                fill as i32,
                 null() as *const c_char)
         };
         result_draw(ret)
     }
-    pub fn draw_circle1(&mut self, ink: f64,cx:i32,cy:i32,r:i32) -> Result<(), Box<Error>> {
+    pub fn draw_circle1(&mut self, ink: f64,cx:i32,cy:i32,r:i32, fill:bool) -> Result<(), Box<Error>> {
         let ret = unsafe {
             ffi::vips_draw_circle1(
                 self.c as *mut ffi::VipsImage,
@@ -241,6 +245,8 @@ impl<'a> VipsImage<'a> {
                 cx as i32,
                 cy as i32,
                 r as i32,
+                "fill\0".as_ptr(),
+                fill as i32,
                 null() as *const c_char)
         };
         result_draw(ret)
