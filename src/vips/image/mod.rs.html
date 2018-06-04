@@ -405,9 +405,15 @@
 <span id="405">405</span>
 <span id="406">406</span>
 <span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">ffi</span>;
-<span class="kw">use</span> <span class="ident">ffi</span>::{<span class="ident">VipsSize</span>, <span class="ident">VipsKernel</span>, <span class="ident">VipsBandFormat</span>};
+<span class="kw">use</span> <span class="ident">ffi</span>::{<span class="ident">VipsSize</span>, <span class="ident">VipsKernel</span>, <span class="ident">VipsBandFormat</span>, <span class="ident">VipsCombineMode</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>;
@@ -565,13 +571,15 @@
         };
         <span class="ident">result_draw</span>(<span class="ident">ret</span>)
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">draw_image</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">img</span>:<span class="kw-2">&amp;</span><span class="ident">VipsImage</span>,<span class="ident">x</span>:<span class="ident">i32</span>,<span class="ident">y</span>:<span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">draw_image</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">img</span>:<span class="kw-2">&amp;</span><span class="ident">VipsImage</span>,<span class="ident">x</span>:<span class="ident">i32</span>,<span class="ident">y</span>:<span class="ident">i32</span>,<span class="ident">mode</span>:<span class="ident">VipsCombineMode</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">ffi</span>::<span class="ident">vips_draw_image</span>(
                 <span class="self">self</span>.<span class="ident">c</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">VipsImage</span>,
                 <span class="ident">img</span>.<span class="ident">c</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">VipsImage</span>,
                 <span class="ident">x</span> <span class="kw">as</span> <span class="ident">i32</span>,
                 <span class="ident">y</span> <span class="kw">as</span> <span class="ident">i32</span>,
+                <span class="string">&quot;mode\0&quot;</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">mode</span>,
                 <span class="ident">null</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>)
         };
         <span class="ident">result_draw</span>(<span class="ident">ret</span>)
@@ -628,7 +636,7 @@
         };
         <span class="ident">result_draw</span>(<span class="ident">ret</span>)
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">draw_circle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ink</span>: <span class="kw-2">&amp;</span>[<span class="ident">f64</span>],<span class="ident">cx</span>:<span class="ident">i32</span>,<span class="ident">cy</span>:<span class="ident">i32</span>,<span class="ident">r</span>:<span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">draw_circle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ink</span>: <span class="kw-2">&amp;</span>[<span class="ident">f64</span>],<span class="ident">cx</span>:<span class="ident">i32</span>,<span class="ident">cy</span>:<span class="ident">i32</span>,<span class="ident">r</span>:<span class="ident">i32</span>,<span class="ident">fill</span>:<span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">ffi</span>::<span class="ident">vips_draw_circle</span>(
                 <span class="self">self</span>.<span class="ident">c</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">VipsImage</span>,
@@ -637,11 +645,13 @@
                 <span class="ident">cx</span> <span class="kw">as</span> <span class="ident">i32</span>,
                 <span class="ident">cy</span> <span class="kw">as</span> <span class="ident">i32</span>,
                 <span class="ident">r</span> <span class="kw">as</span> <span class="ident">i32</span>,
+                <span class="string">&quot;fill\0&quot;</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">fill</span> <span class="kw">as</span> <span class="ident">i32</span>,
                 <span class="ident">null</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>)
         };
         <span class="ident">result_draw</span>(<span class="ident">ret</span>)
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">draw_circle1</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ink</span>: <span class="ident">f64</span>,<span class="ident">cx</span>:<span class="ident">i32</span>,<span class="ident">cy</span>:<span class="ident">i32</span>,<span class="ident">r</span>:<span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">draw_circle1</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ink</span>: <span class="ident">f64</span>,<span class="ident">cx</span>:<span class="ident">i32</span>,<span class="ident">cy</span>:<span class="ident">i32</span>,<span class="ident">r</span>:<span class="ident">i32</span>, <span class="ident">fill</span>:<span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">ffi</span>::<span class="ident">vips_draw_circle1</span>(
                 <span class="self">self</span>.<span class="ident">c</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ffi</span>::<span class="ident">VipsImage</span>,
@@ -649,6 +659,8 @@
                 <span class="ident">cx</span> <span class="kw">as</span> <span class="ident">i32</span>,
                 <span class="ident">cy</span> <span class="kw">as</span> <span class="ident">i32</span>,
                 <span class="ident">r</span> <span class="kw">as</span> <span class="ident">i32</span>,
+                <span class="string">&quot;fill\0&quot;</span>.<span class="ident">as_ptr</span>(),
+                <span class="ident">fill</span> <span class="kw">as</span> <span class="ident">i32</span>,
                 <span class="ident">null</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>)
         };
         <span class="ident">result_draw</span>(<span class="ident">ret</span>)
