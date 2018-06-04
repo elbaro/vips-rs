@@ -1,5 +1,5 @@
 # vips-rs
-[![Crates.io](https://img.shields.io/crates/v/vips-rs.svg)](https://crates.io/crates/vips-rs)
+[![Crates.io](https://img.shields.io/crates/v/vips.svg)](https://crates.io/crates/vips-rs)
 [![Build Status](https://travis-ci.org/elbaro/vips-rs.svg?branch=master)](https://travis-ci.org/elbaro/vips-rs)
 
 This crate provides bindings to libvips.
@@ -12,7 +12,7 @@ A binding to `libvips`.
 
 ```toml
 [dependencies]
-vips-sys = "*"
+vips = "*"
 ```
 
 1. Create a `VipsInstance`.
@@ -20,7 +20,7 @@ vips-sys = "*"
     ```rs
     extern crate vips;
     use vips::*;
-    
+
     fn main() {
         let instance = VipsInstance::new("app_test", true);
         let img = VipsImage::new_from_file("kodim01.png").unwrap();
@@ -28,11 +28,11 @@ vips-sys = "*"
         img.write_to_file("kodim01_123x234.png").unwrap();
     }
     ```
-3. After `VipsInstance` is destroyed, you cannot instantiate another.
 
 ## Notes
 - The API is incomplete.
-- If you cannot find an interface you need, you can use `vips-sys` directly.
+- After `VipsInstance` is destroyed, you cannot instantiate another. There is a static boolean variable for checking this.
+- If you cannot find an interface you need, you can use `vips-sys` directly, or use `call(op_name, args..)` interface.
 
 ## Design To-do
 - Easy interface for varargs.
@@ -75,8 +75,8 @@ If your `VipsImage` owns a rust memory, it registers the deallocation callback t
 // img2 is destroyed.
 // the second vips_sys::VipsImage is destroyed.
 // the first vips_sys::VipsImage is destroyed.
-// gobject callbacks the rust deallocator, and vec is destroyed in rust side. 
-```  
+// gobject callbacks the rust deallocator, and vec is destroyed in rust side.
+```
 
 #### Owned vs Borrowed
 `VipsImage` owns or borrows its pixel data depending on how it is created.
@@ -86,7 +86,7 @@ If your `VipsImage` owns a rust memory, it registers the deallocation callback t
 
 If you create a `VipsImage` with a reference to your data, and apply an operation to the image to get another `VipsImage`, your pixel data needs to outlive the second `VipsImage` as well. However, the first `VipsImage` doesn't need to outlive the second one.
 
-You can find about what works and what doesn't in `/tests`. 
+You can find about what works and what doesn't in `/tests`.
 
 
 
