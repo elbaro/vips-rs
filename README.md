@@ -32,11 +32,50 @@ vips = "*"
 ## Notes
 - The API is incomplete.
 - After `VipsInstance` is destroyed, you cannot instantiate another. There is a static boolean variable for checking this.
-- If you cannot find an interface you need, you can use `vips-sys` directly, or use `call(op_name, args..)` interface.
+- If you cannot find an interface you need, you can use `vips-sys` directly, or use `vips::call(op_name, args..)` interface.
 
-## Design To-do
-- Easy interface for varargs.
-- Add _buf methods to &[u8] as trait?
+## Progress
+
+| Type | Implementation | Test |
+|------|----------------|------|
+| vips |  |  |
+| image |  |  |
+| region |  |  |
+| header |  |  |
+| generate |  |  |
+| op |  |  |
+| err |  |  |
+| memory |  |  |
+| type |  |  |
+| rect |  |  |
+| obj |  |  |
+| thread state |  |  |
+| buf |  |  |
+| basic |  |  |
+
+
+| Image Op | Implementation | Test |
+|----|----------------|------|
+| arithmetic |  |  |
+| colour |  |  |
+| conversion |  |  |
+| convolution |  |  |
+| load/save |  |  |
+| freq filters |  |  |
+| histogram |  |  |
+| draw |  |  |
+| interpolate |  |  |
+| morphology |  |  |
+| mosaic |  |  |
+| create |  |  |
+| resample |  |  |
+
+
+| Op | Implementation | Test |
+|----|----------------|------|
+| transform |  |  |
+| util |  |  |
+| version |  |  |
 
 
 ## How libvips works
