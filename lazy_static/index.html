@@ -60,7 +60,7 @@ have generally the same properties as regular &quot;static&quot; variables:</p>
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;A expensive calculation on a static results in: {}.&quot;</span>, <span class="kw-2">*</span><span class="ident">NUMBER</span>);
 }</pre>
 <h1 id="implementation-details" class="section-header"><a href="#implementation-details">Implementation details</a></h1>
-<p>The <code>Deref</code> implementation uses a hidden static variable that is guarded by a atomic check on each access.</p>
+<p>The <code>Deref</code> implementation uses a hidden static variable that is guarded by an atomic check on each access.</p>
 <h1 id="cargo-features" class="section-header"><a href="#cargo-features">Cargo features</a></h1>
 <p>This crate provides two cargo features:</p>
 <ul>
