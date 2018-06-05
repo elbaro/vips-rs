@@ -1,3 +1,4 @@
+use region::VipsRegion;
 use ffi;
 use std::error::Error;
 use std::ffi::CString;
@@ -24,6 +25,12 @@ impl<'a> Drop for VipsInterpolate {
 impl VipsInterpolate {
 
     //
+    // ─── STATIC ─────────────────────────────────────────────────────────────────────
+    //
+
+    // will not implement: vips_interpolate ()
+
+    //
     // ─── CONSTRUCTORS ───────────────────────────────────────────────────────────────
     //
 
@@ -45,5 +52,52 @@ impl VipsInterpolate {
     pub fn bilinear_static() -> VipsInterpolate {
         let c = unsafe { ffi::vips_interpolate_bilinear_static() };
         VipsInterpolate {c, is_static:true}
+    }
+
+    //
+    // ─── PROPERTIES ─────────────────────────────────────────────────────────────────
+    //
+
+    pub fn method(&self) -> VipsInterpolateMethod {
+        let c = unsafe {
+            ffi::vips_interpolate_get_method(
+                self.c
+            )
+        };
+        VipsInterpolateMethod { c }
+    }
+
+    pub fn window_size(&self) -> i32 {
+        unsafe {
+            ffi::vips_interpolate_get_window_size(
+                self.c
+            )
+        }
+    }
+
+    pub fn window_offset(&self) -> i32 {
+        unsafe {
+            ffi::vips_interpolate_get_window_offset(
+                self.c
+            )
+        }
+    }
+
+
+}
+
+pub struct VipsInterpolateMethod {
+    c: ffi::VipsInterpolateMethod
+}
+
+impl VipsInterpolateMethod {
+    pub fn call(&self, interpolate:&VipsInterpolate, in_: &VipsRegion, out: &mut[u8], x:f64, y:f64){
+        unsafe { self.c.unwrap()(
+            interpolate.c,
+            out.as_ptr() as *mut c_void,
+            in_.c,
+            x,
+            y
+        ) }
     }
 }

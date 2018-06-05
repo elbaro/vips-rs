@@ -63,12 +63,14 @@ vips = "*"
 | load/save |  |  |
 | freq filters |  |  |
 | histogram |  |  |
-| draw |  |  |
-| interpolate |  |  |
+| draw | ☑️ |  |
+| interpolate | ☑️ |  |
 | morphology |  |  |
-| mosaic |  |  |
+| mosaic | ☑️ |  |
 | create |  |  |
 | resample |  |  |
+
+- warning: draw functions mutate self. you have to invalidate childrends.
 
 
 | Op | Implementation | Test |
@@ -131,7 +133,7 @@ You can find about what works and what doesn't in `/tests`.
 
 #### No in-place operation
 Vips operations have no side effect on the input image.
-
+!exception: draw ops mutate self.
 
 #### Memory vs Buffer
 You can find these words in API names. For example, there are `vips_image_new_from_memory` and `vips_image_new_from_buffer`. They are not the same.

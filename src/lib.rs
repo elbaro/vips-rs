@@ -17,9 +17,16 @@ pub use image::VipsImage;
 
 mod interpolate;
 pub use interpolate::VipsInterpolate;
+pub use interpolate::VipsInterpolateMethod;
+
+mod region;
+pub use region::VipsRegion;
 
 mod buffer;
 pub use buffer::VipsBuffer;
+
+// re-exports simple structs
+pub use ffi::VipsRect;
 
 
 // re-exports native enums
