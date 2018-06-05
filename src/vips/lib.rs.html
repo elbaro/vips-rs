@@ -70,6 +70,11 @@
 <span id="70">70</span>
 <span id="71">71</span>
 <span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">non_camel_case_types</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span>
@@ -88,8 +93,12 @@
 <span class="kw">mod</span> <span class="ident">image</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">image</span>::<span class="ident">VipsImage</span>;
 
+<span class="kw">mod</span> <span class="ident">interpolate</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">interpolate</span>::<span class="ident">VipsInterpolate</span>;
+
 <span class="kw">mod</span> <span class="ident">buffer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">buffer</span>::<span class="ident">VipsBuffer</span>;
+
 
 <span class="comment">// re-exports native enums</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">VipsPrecision</span>;
@@ -137,6 +146,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">VipsPCS</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">VipsCombineMode</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">VipsBBits</span>;
+
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">vips_call</span> <span class="kw">as</span> <span class="ident">call</span>;
 
