@@ -53,8 +53,8 @@ fn main() -> Result<()> {
 
 ## 0.2.0 additions and migration
 
-This version is prepared in Git and is not yet on crates.io. Local builds use
-`../vips-sys` 0.3.0; publish that dependency before publishing `vips`.
+This version is prepared in Git and is not yet on crates.io. It uses the published
+`vips-sys` 0.3.0 dependency; no sibling checkout is required.
 
 - `write_to_memory_owned` / `write_to_buffer_owned` return `VipsOwnedBuffer`,
   which owns a GLib allocation and exposes immutable bytes without the extra
@@ -145,9 +145,8 @@ thumb.write_to_file("black_ref_200x200.png")?;
 
 ## Local development
 
-This checkout already uses `../vips-sys`. Published crates resolve its version
-from crates.io. Consumers overriding a published dependency can add this at
-the workspace/consumer root:
+Builds resolve `vips-sys` from crates.io. To develop both crates together, add this
+optional override at the workspace/consumer root:
 
 ```toml
 [patch.crates-io]

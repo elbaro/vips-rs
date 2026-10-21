@@ -11,10 +11,9 @@ repository = "https://github.com/houseme/vips-rs"
 categories = ["multimedia::images"]
 license = "MIT"
 
-# Local builds use the sibling checkout. Cargo packages retain the version
-# requirement for crates.io; publish vips-sys before publishing this crate.
+# Use the published crate by default; see README for a local development patch.
 [dependencies]
-vips-sys = { version = "0.3.0", path = "../vips-sys", features = ["helpers"] }
+vips-sys = { version = "0.3.0", features = ["helpers"] }
 
 [features]
 default = []

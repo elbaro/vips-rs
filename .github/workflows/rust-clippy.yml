@@ -28,12 +28,6 @@ jobs:
         with:
           path: vips-rs
 
-      - name: Checkout vips-sys (sibling path dep)
-        uses: actions/checkout@v7
-        with:
-          repository: houseme/vips-sys
-          path: vips-sys
-
       - name: Set up system dependencies
         run: |
           sudo apt-get update
@@ -49,6 +43,7 @@ jobs:
       - name: Run rust-clippy
         run:
           cargo clippy
+          --locked
           --all-targets
           --all-features
           --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt

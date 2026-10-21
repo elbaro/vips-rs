@@ -66,12 +66,6 @@ jobs:
         with:
           path: vips-rs
 
-      - name: Checkout vips-sys (sibling path dep)
-        uses: actions/checkout@v7
-        with:
-          repository: houseme/vips-sys
-          path: vips-sys
-
       - name: Check tag matches Cargo.toml version
         if: matrix.gates
         shell: bash
@@ -130,7 +124,6 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             vips-rs/target
-            vips-sys/target
           key: ${{ runner.os }}-release-cargo-${{ hashFiles('vips-rs/Cargo.lock') }}
 
       - name: cargo fmt
@@ -138,15 +131,15 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: cargo clippy
-        run: cargo clippy --all-targets --features="${{ matrix.vips_features }}" -- -D warnings
+        run: cargo clippy --locked --all-targets --features="${{ matrix.vips_features }}" -- -D warnings
 
       - name: cargo test
         if: matrix.link_tests
-        run: cargo test --features="${{ matrix.vips_features }}"
+        run: cargo test --locked --features="${{ matrix.vips_features }}"
 
       - name: Package dry-run
         if: matrix.gates
-        # Proves the crate is publishable (path deps stripped to version-only).
+        # Verifies packaging against the published registry dependency.
         run: |
           cargo package --list
           cargo publish --dry-run --locked
@@ -161,12 +154,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: vips-rs
-
-      - name: Checkout vips-sys (sibling path dep)
-        uses: actions/checkout@v7
-        with:
-          repository: houseme/vips-sys
-          path: vips-sys
 
       - uses: dtolnay/rust-toolchain@stable
 

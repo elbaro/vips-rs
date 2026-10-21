@@ -24,12 +24,6 @@ jobs:
         with:
           path: vips-rs
 
-      - name: Checkout vips-sys (sibling path dep)
-        uses: actions/checkout@v7
-        with:
-          repository: houseme/vips-sys
-          path: vips-sys
-
       - name: Install build dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -48,4 +42,4 @@ jobs:
       - name: Run cargo doc
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc --no-deps --all-features
+        run: cargo doc --no-deps --all-features --locked

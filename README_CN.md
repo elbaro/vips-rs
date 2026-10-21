@@ -53,8 +53,8 @@ fn main() -> Result<()> {
 
 ## 0.2.0 新增能力与迁移
 
-此版本仅在 Git 中准备，尚未发布到 crates.io。开发时使用同级 `../vips-sys` 0.3.0；
-将来发布时先发布该依赖。
+此版本仅在 Git 中准备，尚未发布到 crates.io。依赖已正式发布的 `vips-sys` 0.3.0，
+无需检出同级仓库。
 
 - `write_to_memory_owned` / `write_to_buffer_owned` 返回 `VipsOwnedBuffer`，
   持有 GLib 内存并提供不可变字节切片，省去额外复制到 Rust `Vec` 的成本；原 Vec API 保留。
@@ -136,7 +136,7 @@ thumb.write_to_file("black_ref_200x200.png")?;
 
 ## 本地开发
 
-当前源码已直接使用 `../vips-sys`；正式发布的 crate 从 crates.io 解析对应版本。消费方若覆盖已发布依赖，可在工作区根目录增加：
+默认从 crates.io 解析 `vips-sys`。如需同时开发两个 crate，可在工作区或消费方根目录添加以下可选覆盖：
 
 ```toml
 [patch.crates-io]

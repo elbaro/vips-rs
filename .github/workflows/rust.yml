@@ -14,8 +14,7 @@ defaults:
     working-directory: vips-rs
 
 jobs:
-  # Cross-platform check / clippy / test. Needs a sibling vips-sys checkout
-  # to validate the unpublished sibling vips-sys version.
+  # Cross-platform checks use the published vips-sys package pinned in Cargo.lock.
   test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -49,12 +48,6 @@ jobs:
         with:
           path: vips-rs
 
-      - name: Checkout vips-sys (sibling path dep)
-        uses: actions/checkout@v7
-        with:
-          repository: houseme/vips-sys
-          path: vips-sys
-
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
@@ -78,23 +71,22 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             vips-rs/target
-            vips-sys/target
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('vips-rs/Cargo.lock', 'vips-sys/Cargo.toml') }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-cargo-${{ hashFiles('vips-rs/Cargo.lock') }}
 
       - name: cargo check
-        run: cargo check --all-features
+        run: cargo check --all-features --locked
 
       - name: cargo clippy
         if: matrix.toolchain == 'stable'
-        run: cargo clippy --all-targets --features="${{ matrix.vips_features }}" -- -D warnings
+        run: cargo clippy --locked --all-targets --features="${{ matrix.vips_features }}" -- -D warnings
 
       - name: cargo test
         if: matrix.link_tests
-        run: cargo test --features="${{ matrix.vips_features }}"
+        run: cargo test --locked --features="${{ matrix.vips_features }}"
 
       - name: cargo build (release)
         if: matrix.link_tests
-        run: cargo build --release --features="${{ matrix.vips_features }}"
+        run: cargo build --locked --release --features="${{ matrix.vips_features }}"
 
   rust_fmt_check:
     name: RustFmt

@@ -48,11 +48,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add borrowed-secondary/conditional/region lifetime regressions, initialization
   contention and retry checks, native output ownership/drawing/shape tests, and
   8.18 colour/metadata checks.
-- Use sibling `vips-sys` 0.3.0 for local and CI validation; packaged dependencies
-  resolve the same version from crates.io. Publish that dependency first later.
+- Resolve published `vips-sys` 0.3.0 from crates.io for local builds and CI,
+  including its Windows/vcpkg discovery fix and native build improvements.
+  The lockfile records the registry source and package checksum; CI no longer
+  needs a sibling checkout. Local development can still use `[patch.crates-io]`.
 - CI exercises 8.18 APIs on macOS and default APIs with Linux distro libraries;
   CodeQL also tracks the default `main` branch.
-- This version is committed for review only; no tag, GitHub Release or crates.io publish.
+- `vips` 0.2.0 remains prepared in Git without a release tag or package publication.
 
 ### Added
 
