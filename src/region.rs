@@ -1,19 +1,24 @@
 use crate::VipsImage;
 use crate::ffi;
+use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
 
 /// Safe RAII wrapper around a libvips `VipsRegion*`.
-pub struct VipsRegion {
+pub struct VipsRegion<'a> {
     c: NonNull<vips_sys::VipsRegion>,
+    marker: PhantomData<&'a ()>,
 }
 
-impl VipsRegion {
+impl<'a> VipsRegion<'a> {
     /// Create a new region for `image`.
-    pub fn new(image: &VipsImage) -> Option<VipsRegion> {
+    pub fn new(image: &VipsImage<'a>) -> Option<VipsRegion<'a>> {
         // SAFETY: `image.as_ptr()` is a live VipsImage; region is owned by us.
         let c = unsafe { vips_sys::vips_region_new(image.as_ptr()) };
-        NonNull::new(c).map(|c| VipsRegion { c })
+        NonNull::new(c).map(|c| VipsRegion {
+            c,
+            marker: PhantomData,
+        })
     }
 
     /// Borrow the underlying pointer for FFI. Valid while `self` lives.
@@ -23,7 +28,7 @@ impl VipsRegion {
     }
 }
 
-impl Drop for VipsRegion {
+impl Drop for VipsRegion<'_> {
     fn drop(&mut self) {
         // SAFETY: exclusive ownership of a live GObject region.
         unsafe { ffi::unref(self.c.as_ptr().cast::<c_void>()) };

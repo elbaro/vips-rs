@@ -11,7 +11,7 @@
 Rust bindings for libvips: fast, low-memory image processing with a safe, ergonomic API.
 
 - Safe wrappers over common libvips APIs
-- RAII-style initialization/shutdown management
+- Process-wide initialization and RAII image ownership
 - Practical helpers for reading, transforming, and writing images
 - Lazy pipeline evaluation (libvips demand-driven processing)
 
@@ -19,10 +19,10 @@ Documentation: https://docs.rs/vips/
 
 ## Requirements
 
-- Rust >= 1.85.0 (edition 2024)
+- Current stable Rust (edition 2024)
 - libvips installed on your system
     - macOS: `brew install vips`
-    - Linux: `apt-get install -y pkg-config libvips libvips-dev` (or your distro equivalent)
+    - Linux: `apt-get install -y pkg-config libvips-dev` (or your distro equivalent)
 
 ## Installation
 
@@ -30,7 +30,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-vips = "0.1"
+vips = "0.2"
 ```
 
 ## Quick start
@@ -39,7 +39,7 @@ vips = "0.1"
 use vips::*;
 
 fn main() -> Result<()> {
-    // Initialize libvips once per process. The boolean usually controls auto-shutdown.
+    // Initialize once per process. The boolean enables leak diagnostics.
     let _instance = VipsInstance::new("app_example", true)?;
 
     // Create a thumbnail with forced width and height (preferred for files)
@@ -50,6 +50,38 @@ fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+## 0.2.0 additions and migration
+
+This version is prepared in Git and is not yet on crates.io. Local builds use
+`../vips-sys` 0.3.0; publish that dependency before publishing `vips`.
+
+- `write_to_memory_owned` / `write_to_buffer_owned` return `VipsOwnedBuffer`,
+  which owns a GLib allocation and exposes immutable bytes without the extra
+  full-buffer copy into a Rust `Vec`. Existing Vec APIs remain available.
+- `from_file_with_access` / `from_buffer_with_access` accept a `VipsAccess` hint.
+  Prefer sequential access for a one-pass pipeline and file/buffer thumbnail
+  constructors for shrink-on-load.
+- `--features v8_18` adds `tile_size`, `gainmap`, camera RAW file/buffer loaders,
+  UltraHDR file/buffer IO and scRGB conversion, Oklab/Oklch conversion helpers,
+  and `interpretation_bands`. Requires libvips 8.18+; RAW and HDR codecs remain
+  optional build-time dependencies of the system library.
+- `VipsRegion` now has a buffer lifetime; lazy multi-image operations retain
+  every input buffer's lifetime. Image handles may drop before their results,
+  but borrowed pixel buffers must remain alive.
+- Drawing detaches borrowed/shared storage into writable memory on first use.
+  Borrowed memory must be correctly aligned for its sample format.
+- `VipsInterpolateMethod::call` is unsafe because output size/alignment and a
+  prepared interpolation window are native caller obligations.
+- `VipsInstance` uses the same initialization state as `init` and no longer
+  shuts the process-wide library down when its handle is dropped.
+
+```toml
+vips = { version = "0.2", features = ["v8_18"] }
+```
+
+Run `cargo run --release --example buffer_bench` for an alternating ABBA
+comparison of copied and owned raw exports. See the [review and roadmap](docs/review-2026-10-22.md).
 
 ## Working with memory
 
@@ -76,8 +108,7 @@ thumb.write_to_file("black_ref_200x200.png")?;
 - Prefer owned constructors (`from_file`, `from_memory`) when possible.
 - Borrowing constructors (`from_memory_reference`) tie the image lifetime to the borrowed slice. Do not let the slice
   drop before all derived images are fully used.
-- Keep the creator image in scope while using results that reference it. Avoid creating images inside a short inner
-  scope and returning derived results from it.
+- Native image references are retained by derived pipelines; creator handles may drop earlier. Every borrowed input buffer must still outlive the result.
 
 ## API highlights
 
@@ -101,22 +132,22 @@ thumb.write_to_file("black_ref_200x200.png")?;
 
 - Prefer `VipsImage::thumbnail_file` / `VipsImage::thumbnail_buffer` over `from_file`/`from_buffer` + `thumbnail` for downscales. They call `vips_thumbnail` / `vips_thumbnail_buffer`, which combine load and resize so libvips can shrink-on-load (often ~3× faster and several times lower peak memory than `thumbnail_image`). Use the instance method `thumbnail` only for already-decoded raw pixels.
 - Prefer `write_to_file` over `write_to_memory` when the destination is a path (avoids a full in-memory copy).
-- For large downscales (factor ≳ 3 on multi-megapixel sources), prefer `resize_reduce` — it box-pre-shrinks before the final kernel.
+- For already-decoded large images, benchmark `resize_reduce` against `resize` before choosing the extra box pre-shrink pass; it can be slower on small inputs.
 - Tune `vips::set_concurrency`, `set_max_operations`, and `set_max_mem_bytes` for your workload.
 - libvips pipelines are lazy: operations enqueue work until the image is written or materialized.
 
 ## Notes
 
-- Initialization: the crate manages `vips_init`/`vips_shutdown` via `VipsInstance` and standard library primitives (
-  `OnceLock`).
+- Initialization: `init` and `VipsInstance` share process-wide state. Native objects use RAII; global state remains available until process exit.
 - Side effects: most operations return new images; drawing operations modify `self`.
-- If a higher-level wrapper is missing, you can still access lower-level bindings in `vips-sys` or use `vips::call(...)`
+- If a higher-level wrapper is missing, you can still access lower-level bindings in `vips-sys` or use unsafe `vips::vips_call(...)`
   to invoke libvips operations directly.
 
 ## Local development
 
-Published builds resolve `vips-sys` from crates.io. To develop against a sibling checkout, add a
-`[patch]` at the **workspace/consumer root** (or temporarily in this crate):
+This checkout already uses `../vips-sys`. Published crates resolve its version
+from crates.io. Consumers overriding a published dependency can add this at
+the workspace/consumer root:
 
 ```toml
 [patch.crates-io]

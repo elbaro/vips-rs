@@ -11,7 +11,7 @@
 `libvips` 的 Rust 绑定，为图片处理提供高性能与低内存占用的能力，并以安全、易用的 API 封装常用功能。
 
 - 针对常用 `libvips` API 的安全封装
-- 基于 RAII 的初始化/关闭管理
+- 进程级初始化与基于 RAII 的图像资源管理
 - 提供读取、变换、写入的常用便捷方法
 - 惰性流水线求值（libvips 按需计算）
 
@@ -19,10 +19,10 @@
 
 ## 环境要求
 
-- Rust >= 1.85.0（edition 2024）
+- 当前 stable Rust（edition 2024）
 - 系统已安装 `libvips`
     - macOS：`brew install vips`
-    - Linux：`apt-get install -y pkg-config libvips libvips-dev`（或使用对应发行版包名）
+    - Linux：`apt-get install -y pkg-config libvips-dev`（或使用对应发行版包名）
 
 ## 安装
 
@@ -30,7 +30,7 @@
 
 ```toml
 [dependencies]
-vips = "0.1"
+vips = "0.2"
 ```
 
 ## 快速开始
@@ -39,7 +39,7 @@ vips = "0.1"
 use vips::*;
 
 fn main() -> Result<()> {
-    // 初始化 libvips（进程内仅需一次，通常布尔值用于控制自动关闭）
+    // 初始化 libvips（进程内仅需一次，布尔值控制泄漏诊断）
     let _instance = VipsInstance::new("app_example", true)?;
 
     // 生成缩略图（文件来源优先走 vips_thumbnail，可 shrink-on-load）
@@ -50,6 +50,31 @@ fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+## 0.2.0 新增能力与迁移
+
+此版本仅在 Git 中准备，尚未发布到 crates.io。开发时使用同级 `../vips-sys` 0.3.0；
+将来发布时先发布该依赖。
+
+- `write_to_memory_owned` / `write_to_buffer_owned` 返回 `VipsOwnedBuffer`，
+  持有 GLib 内存并提供不可变字节切片，省去额外复制到 Rust `Vec` 的成本；原 Vec API 保留。
+- `from_file_with_access` / `from_buffer_with_access` 支持 `VipsAccess` 提示。
+  单遍流水线可选顺序读取；文件或编码缓冲区缩略图仍优先使用 shrink-on-load 构造函数。
+- `v8_18` feature 提供 `tile_size`、`gainmap`、相机 RAW 文件/缓冲区加载、
+  UltraHDR 文件/缓冲区读写及 scRGB 转换、Oklab/Oklch 转换和 `interpretation_bands`。
+  需要系统 libvips 8.18+，RAW/HDR 还取决于系统库是否编入相应可选 codec。
+- `VipsRegion` 新增缓冲区生命周期；多图惰性操作保留所有输入缓冲区的生命周期。
+  图像句柄允许先销毁，借用的像素数据仍需保持存活。
+- 绘图首次修改借用或共享数据时先复制到自有可写内存；输入须满足样本格式的对齐要求。
+- `VipsInterpolateMethod::call` 改为 unsafe，调用者须保证输出大小、对齐和 region 插值窗口有效。
+- `VipsInstance` 与 `init` 共享初始化状态，句柄销毁不再关闭进程级 libvips。
+
+```toml
+vips = { version = "0.2", features = ["v8_18"] }
+```
+
+使用 `cargo run --release --example buffer_bench` 运行交替 ABBA 内存导出对比。
+完整核查与后续优化见 [review](docs/review-2026-10-22.md)。
 
 ## 从内存构造
 
@@ -75,7 +100,7 @@ thumb.write_to_file("black_ref_200x200.png")?;
 
 - 优先使用拥有型构造（`from_file`、`from_memory`）。
 - 借用型构造（`from_memory_reference`）会让返回图像绑定到输入切片生命周期；不要让底层切片先被释放。
-- 避免在短作用域内创建图像却将其派生结果带到外层使用；请确保创建者与派生结果处于同一作用域或更长作用域。
+- 派生流水线保留原生图像引用，创建者句柄可以先销毁；所有借用输入缓冲区仍须覆盖派生结果的使用期。
 
 ## 功能概览
 
@@ -99,19 +124,19 @@ thumb.write_to_file("black_ref_200x200.png")?;
 
 - 缩略图优先使用 `VipsImage::thumbnail_file` / `VipsImage::thumbnail_buffer`，不要先 `from_file`/`from_buffer` 再 `thumbnail`。前者调用 `vips_thumbnail` / `vips_thumbnail_buffer`，会把加载与缩放合并，libvips 可做 shrink-on-load（通常比 `thumbnail_image` 快数倍、峰值内存更低）。实例方法 `thumbnail` 仅用于已解码的原始像素。
 - 目标是文件路径时优先 `write_to_file`，避免 `write_to_memory` 的整图拷贝。
-- 大幅缩小（百万像素级、缩小倍数 ≳ 3）时优先 `resize_reduce`：先 box 预缩小再最终重采样。
+- 对已解码大图，先对比 `resize_reduce` 与 `resize` 再决定是否加 box 预缩小；小图上额外预处理可能更慢。
 - 按业务负载调整 `vips::set_concurrency`、`set_max_operations`、`set_max_mem_bytes`。
 - libvips 流水线是惰性的：操作会入队，直到写出或物化时才真正计算。
 
 ## 说明
 
-- 初始化：通过 `VipsInstance` 与标准库原语（`OnceLock`）管理 `vips_init`/`vips_shutdown`。
+- 初始化：`init` 与 `VipsInstance` 共享进程级状态；图像资源采用 RAII，全局状态保持到进程退出。
 - 副作用：大多数操作返回新图像；`draw*` 系列会原地修改 `self`。
-- 若缺少更高层封装，可使用底层 `vips-sys` 或 `vips::call(...)` 直接调用 libvips 操作。
+- 若缺少更高层封装，可使用底层 `vips-sys` 或 unsafe `vips::vips_call(...)` 直接调用 libvips 操作。
 
 ## 本地开发
 
-正式构建从 crates.io 解析 `vips-sys`。若要改用本地 sibling 源码，在**工作区/消费方根目录**（或临时在本 crate）增加：
+当前源码已直接使用 `../vips-sys`；正式发布的 crate 从 crates.io 解析对应版本。消费方若覆盖已发布依赖，可在工作区根目录增加：
 
 ```toml
 [patch.crates-io]

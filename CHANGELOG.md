@@ -9,6 +9,51 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-22
+
+### Safety and compatibility
+
+- **Breaking:** `VipsRegion` retains the backing buffer lifetime. Lazy multi-image
+  operations constrain every input buffer, including secondary images and masks.
+- **Breaking:** `VipsInterpolateMethod::call` is unsafe because prepared-region,
+  output-size/alignment, and method/interpolator invariants cannot be inferred.
+- `VipsInstance` and `init` share `vips-sys`'s initialization lock and success state.
+  Failures do not consume the singleton slot. Dropping a `VipsInstance` leaves the
+  process-wide library alive for outstanding images and workers.
+- Drawing detaches borrowed/shared memory before its first modification, preserving
+  immutable Rust inputs. Memory constructors validate size, dimensions and alignment.
+- Invalid `linear` arrays and overflowing/invalid `median` sizes return errors.
+
+### Performance
+
+- `VipsOwnedBuffer`, `write_to_memory_owned` and `write_to_buffer_owned` avoid the
+  additional full-output copy and allocation into a Rust `Vec`; existing Vec APIs
+  delegate to the same RAII owner so all returned native allocations are freed.
+- `from_memory` retains the original Vec allocation, including spare capacity,
+  rather than shrinking it through `into_boxed_slice`.
+- File/buffer loading supports explicit sequential/random `VipsAccess` hints.
+- Add a release-mode ABBA raw-export benchmark. Existing `perf_smoke` timings now
+  force pixel evaluation instead of timing lazy pipeline construction alone.
+
+### Added in feature `v8_18`
+
+- `tile_size`, `gainmap`, and `interpretation_bands`.
+- `dcrawload_file` / `dcrawload_buffer` for camera RAW.
+- `uhdrload_file` / `uhdrload_buffer`, `write_uhdr` / `write_uhdr_buffer`, `uhdr2scrgb`.
+- `xyz2oklab`, `oklab2xyz`, `oklab2oklch`, `oklch2oklab`.
+- These wrap stable libvips 8.18 APIs; RAW/HDR support depends on optional native codecs.
+
+### Validation and delivery
+
+- Add borrowed-secondary/conditional/region lifetime regressions, initialization
+  contention and retry checks, native output ownership/drawing/shape tests, and
+  8.18 colour/metadata checks.
+- Use sibling `vips-sys` 0.3.0 for local and CI validation; packaged dependencies
+  resolve the same version from crates.io. Publish that dependency first later.
+- CI exercises 8.18 APIs on macOS and default APIs with Linux distro libraries;
+  CodeQL also tracks the default `main` branch.
+- This version is committed for review only; no tag, GitHub Release or crates.io publish.
+
 ### Added
 
 - `VipsImage::thumbnail_file` — `vips_thumbnail` constructor that combines load + resize (shrink-on-load). Preferred for file sources over `from_file` + `thumbnail`.

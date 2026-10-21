@@ -12,17 +12,20 @@ fn main() -> Result<()> {
     // Path API + large downscale via pre-shrink
     let t0 = Instant::now();
     let thumb = img.resize_reduce(0.05, None, None)?;
+    let _ = thumb.write_to_memory_owned()?;
     let d_reduce = t0.elapsed();
     let (tw, th) = thumb.size();
     assert!(tw > 0 && th > 0 && tw < w && th < h);
 
     let t1 = Instant::now();
-    let _plain = img.resize(0.05, None, None)?;
+    let plain = img.resize(0.05, None, None)?;
+    let _ = plain.write_to_memory_owned()?;
     let d_plain = t1.elapsed();
 
     // Preferred file thumbnail path (shrink-on-load)
     let t2 = Instant::now();
     let file_thumb = VipsImage::thumbnail_file(path, 32, 32, VipsSize::VIPS_SIZE_BOTH)?;
+    let _ = file_thumb.write_to_memory_owned()?;
     let d_thumb_file = t2.elapsed();
     let (ftw, fth) = file_thumb.size();
     assert!(ftw > 0 && fth > 0 && ftw <= 32 && fth <= 32);
@@ -31,6 +34,7 @@ fn main() -> Result<()> {
     let encoded = img.write_to_buffer(".png")?;
     let t3 = Instant::now();
     let buf_thumb = VipsImage::thumbnail_buffer(&encoded, 32, 32, VipsSize::VIPS_SIZE_BOTH)?;
+    let _ = buf_thumb.write_to_memory_owned()?;
     let d_thumb_buf = t3.elapsed();
     assert!(buf_thumb.width() > 0 && buf_thumb.width() <= 32);
 

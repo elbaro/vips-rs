@@ -87,9 +87,13 @@ pub struct VipsInterpolateMethod {
 impl VipsInterpolateMethod {
     /// Interpolate one pixel into `out`.
     ///
-    /// `out` must be large enough for the interpolator's window (use
-    /// [`VipsInterpolate::window_size`] as a guide).
-    pub fn call(
+    /// # Safety
+    /// `in_` must be prepared for the complete interpolation window at `(x, y)`.
+    /// `out` must hold at least one pixel in the region image's band format
+    /// and band count, with the alignment required by that format. The method
+    /// must belong to `interpolate`. A slice alone cannot establish these
+    /// libvips invariants.
+    pub unsafe fn call(
         &self,
         interpolate: &VipsInterpolate,
         in_: &VipsRegion,

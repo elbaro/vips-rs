@@ -10,6 +10,16 @@ use vips_sys::{
     VipsInteresting, VipsKernel, VipsSize,
 };
 
+#[cfg(feature = "v8_18")]
+mod v8_18;
+
+/// Number of colour bands used by an interpretation (libvips 8.18+).
+#[cfg(feature = "v8_18")]
+pub fn interpretation_bands(interpretation: vips_sys::VipsInterpretation) -> i32 {
+    // SAFETY: the C function accepts a value enum and returns a scalar.
+    unsafe { vips_sys::vips_interpretation_bands(interpretation) }
+}
+
 /// Convert a filesystem path to a C string without intermediate UTF-8 `Vec` allocations.
 fn path_to_cstring(path: &Path) -> Result<CString> {
     #[cfg(unix)]
@@ -23,6 +33,43 @@ fn path_to_cstring(path: &Path) -> Result<CString> {
         CString::new(path.to_string_lossy().as_bytes())
             .map_err(|e| Error::InitFailed(format!("invalid path: {e}")))
     }
+}
+
+fn validate_memory(
+    buf: &[u8],
+    width: u32,
+    height: u32,
+    bands: u8,
+    format: VipsBandFormat,
+) -> Result<()> {
+    use VipsBandFormat::*;
+    let (sample_bytes, alignment) = match format {
+        VIPS_FORMAT_UCHAR | VIPS_FORMAT_CHAR => (1, 1),
+        VIPS_FORMAT_USHORT | VIPS_FORMAT_SHORT => (2, 2),
+        VIPS_FORMAT_UINT | VIPS_FORMAT_INT | VIPS_FORMAT_FLOAT => (4, 4),
+        VIPS_FORMAT_COMPLEX => (8, 4),
+        VIPS_FORMAT_DOUBLE => (8, 8),
+        VIPS_FORMAT_DPCOMPLEX => (16, 8),
+        _ => return Err(Error::Other("invalid memory image band format".into())),
+    };
+    let required = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|n| n.checked_mul(bands as usize))
+        .and_then(|n| n.checked_mul(sample_bytes));
+    if width == 0
+        || height == 0
+        || bands == 0
+        || width > i32::MAX as u32
+        || height > i32::MAX as u32
+        || required.is_none_or(|n| n > buf.len())
+        || buf.as_ptr().align_offset(alignment) != 0
+    {
+        return Err(Error::Other(
+            "memory image requires positive i32 dimensions, enough bytes, and aligned samples"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Safe RAII wrapper around a libvips `VipsImage*`.
@@ -53,6 +100,8 @@ pub struct VipsImage<'a> {
     /// Unique ownership of a `VipsImage*`; always non-null.
     c: std::ptr::NonNull<vips_sys::VipsImage>,
     marker: PhantomData<&'a ()>,
+    /// Only explicitly owned memory can be modified without detaching first.
+    writable: bool,
 }
 
 impl<'a> Drop for VipsImage<'a> {
@@ -66,13 +115,13 @@ impl<'a> Drop for VipsImage<'a> {
 ///
 /// # Safety
 /// Called by GObject with `user_data` from `g_signal_connect_data`; must be a
-/// `Box<Box<[u8]>>` allocated by `from_memory`.
+/// `Box<Vec<u8>>` allocated by `from_memory`.
 unsafe extern "C" fn image_postclose(_ptr: *mut vips_sys::VipsImage, user_data: *mut c_void) {
     if user_data.is_null() {
         return;
     }
     // SAFETY: reconstructed exactly as boxed in `from_memory`.
-    let b: Box<Box<[u8]>> = unsafe { Box::from_raw(user_data as *mut Box<[u8]>) };
+    let b: Box<Vec<u8>> = unsafe { Box::from_raw(user_data as *mut Vec<u8>) };
     drop(b);
 }
 
@@ -95,7 +144,23 @@ impl<'a> VipsImage<'a> {
         VipsImage {
             c,
             marker: PhantomData,
+            writable: false,
         }
+    }
+
+    /// Detach borrowed or shared pixels before an in-place draw. Unlike
+    /// vips_image_copy_memory, writing to a fresh memory image always copies
+    /// even when the input is already backed by a caller's immutable slice.
+    fn ensure_writable(&mut self) -> Result<()> {
+        if !self.writable {
+            let mut copy = Self::new_memory()?;
+            // SAFETY: both images are live; the destination owns its storage.
+            let ret = unsafe { vips_sys::vips_image_write(self.as_ptr(), copy.as_ptr()) };
+            ffi::ret_to_result(ret)?;
+            copy.writable = true;
+            *self = copy;
+        }
+        Ok(())
     }
 
     //
@@ -173,6 +238,25 @@ impl<'a> VipsImage<'a> {
         }
     }
 
+    /// Load a file with an explicit access hint. Use `VIPS_ACCESS_SEQUENTIAL`
+    /// for one-pass pipelines; random access is needed for arbitrary regions.
+    pub fn from_file_with_access(
+        path: impl AsRef<Path>,
+        access: vips_sys::VipsAccess,
+    ) -> Result<VipsImage<'a>> {
+        let path = path_to_cstring(path.as_ref())?;
+        // SAFETY: path is NUL-terminated and access is passed as a C enum.
+        let ptr = unsafe {
+            vips_sys::vips_image_new_from_file(
+                path.as_ptr(),
+                c"access".as_ptr(),
+                access,
+                null() as *const c_char,
+            )
+        };
+        result(ptr)
+    }
+
     /// Create a VipsImage from a memory buffer.
     ///
     /// # Arguments
@@ -204,7 +288,8 @@ impl<'a> VipsImage<'a> {
         bands: u8,
         format: VipsBandFormat,
     ) -> Result<VipsImage<'a>> {
-        let b: Box<[u8]> = buf.into_boxed_slice();
+        validate_memory(&buf, width, height, bands, format)?;
+        let b = buf;
         let c = unsafe {
             vips_sys::vips_image_new_from_memory(
                 b.as_ptr() as *const c_void,
@@ -222,7 +307,7 @@ impl<'a> VipsImage<'a> {
             ));
         }
 
-        let bb: Box<Box<[u8]>> = Box::new(b);
+        let bb: Box<Vec<u8>> = Box::new(b);
         let raw: *mut c_void = Box::into_raw(bb) as *mut c_void;
 
         // SAFETY: `c` is a valid image; callback frees `raw` exactly once on close.
@@ -240,7 +325,9 @@ impl<'a> VipsImage<'a> {
         };
 
         // SAFETY: unique ownership transferred to the wrapper.
-        Ok(unsafe { VipsImage::from_raw(c) })
+        let mut image = unsafe { VipsImage::from_raw(c) };
+        image.writable = true;
+        Ok(image)
     }
 
     /// Create a VipsImage from a memory buffer reference.
@@ -277,6 +364,7 @@ impl<'a> VipsImage<'a> {
         bands: u8,
         format: VipsBandFormat,
     ) -> Result<VipsImage<'a>> {
+        validate_memory(buf, width, height, bands, format)?;
         let c = unsafe {
             vips_sys::vips_image_new_from_memory(
                 buf.as_ptr() as *const c_void,
@@ -326,6 +414,26 @@ impl<'a> VipsImage<'a> {
         result(c)
     }
 
+    /// Decode encoded bytes with an explicit access hint. The input bytes
+    /// must outlive the returned image and every derived lazy pipeline.
+    pub fn from_buffer_with_access(
+        buf: &'a [u8],
+        access: vips_sys::VipsAccess,
+    ) -> Result<VipsImage<'a>> {
+        // SAFETY: input remains borrowed by the returned image; varargs end in NULL.
+        let ptr = unsafe {
+            vips_sys::vips_image_new_from_buffer(
+                buf.as_ptr().cast(),
+                buf.len(),
+                c"".as_ptr(),
+                c"access".as_ptr(),
+                access,
+                null() as *const c_char,
+            )
+        };
+        result(ptr)
+    }
+
     //
     // ─── DRAW ───────────────────────────────────────────────────────────────────────
     //
@@ -365,6 +473,7 @@ impl<'a> VipsImage<'a> {
         width: u32,
         height: u32,
     ) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_rect(
                 self.c.as_ptr(),
@@ -387,6 +496,7 @@ impl<'a> VipsImage<'a> {
         width: u32,
         height: u32,
     ) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_rect1(
                 self.c.as_ptr(),
@@ -401,6 +511,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_point(&mut self, ink: &[f64], x: i32, y: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_point(
                 self.c.as_ptr(),
@@ -414,6 +525,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_point1(&mut self, ink: f64, x: i32, y: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_point1(self.c.as_ptr(), ink, x, y, null() as *const c_char)
         };
@@ -426,6 +538,7 @@ impl<'a> VipsImage<'a> {
         y: i32,
         mode: VipsCombineMode,
     ) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_image(
                 self.c.as_ptr(),
@@ -440,6 +553,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_mask(&mut self, ink: &[f64], mask: &VipsImage, x: i32, y: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_mask(
                 self.c.as_ptr(),
@@ -454,6 +568,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_mask1(&mut self, ink: f64, mask: &VipsImage, x: i32, y: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_mask1(
                 self.c.as_ptr(),
@@ -467,6 +582,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_line(&mut self, ink: &[f64], x1: i32, y1: i32, x2: i32, y2: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_line(
                 self.c.as_ptr(),
@@ -482,6 +598,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_line1(&mut self, ink: f64, x1: i32, y1: i32, x2: i32, y2: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_line1(
                 self.c.as_ptr(),
@@ -496,6 +613,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_circle(&mut self, ink: &[f64], cx: i32, cy: i32, r: i32, fill: bool) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_circle(
                 self.c.as_ptr(),
@@ -512,6 +630,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_circle1(&mut self, ink: f64, cx: i32, cy: i32, r: i32, fill: bool) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_circle1(
                 self.c.as_ptr(),
@@ -527,6 +646,7 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_flood(&mut self, ink: &[f64], x: i32, y: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_flood(
                 self.c.as_ptr(),
@@ -540,12 +660,14 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
     pub fn draw_flood1(&mut self, ink: f64, x: i32, y: i32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_flood1(self.c.as_ptr(), ink, x, y, null() as *const c_char)
         };
         result_draw(ret)
     }
     pub fn draw_smudge(&mut self, left: u32, top: u32, width: u32, height: u32) -> Result<()> {
+        self.ensure_writable()?;
         let ret = unsafe {
             vips_sys::vips_draw_smudge(
                 self.c.as_ptr(),
@@ -565,7 +687,7 @@ impl<'a> VipsImage<'a> {
 
     pub fn merge(
         &self,
-        another: &VipsImage,
+        another: &VipsImage<'a>,
         direction: VipsDirection,
         dx: i32,
         dy: i32,
@@ -602,7 +724,7 @@ impl<'a> VipsImage<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn mosaic(
         &self,
-        sec: &VipsImage,
+        sec: &VipsImage<'a>,
         direction: VipsDirection,
         xref: i32,
         yref: i32,
@@ -641,7 +763,7 @@ impl<'a> VipsImage<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn mosaic1(
         &self,
-        sec: &VipsImage,
+        sec: &VipsImage<'a>,
         direction: VipsDirection,
         xr1: i32,
         yr1: i32,
@@ -721,7 +843,7 @@ impl<'a> VipsImage<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn match_(
         &self,
-        sec: &VipsImage,
+        sec: &VipsImage<'a>,
         xr1: i32,
         yr1: i32,
         xs1: i32,
@@ -1226,7 +1348,7 @@ impl<'a> VipsImage<'a> {
     }
 
     /// Insert `sub` into a copy of `self` at `(x, y)`.
-    pub fn insert(&self, sub: &VipsImage, x: i32, y: i32) -> Result<VipsImage<'a>> {
+    pub fn insert(&self, sub: &VipsImage<'a>, x: i32, y: i32) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -1359,7 +1481,7 @@ impl<'a> VipsImage<'a> {
     }
 
     /// Join with another image band-wise.
-    pub fn bandjoin2(&self, other: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn bandjoin2(&self, other: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -1392,7 +1514,8 @@ impl<'a> VipsImage<'a> {
         result_with_ret(out_ptr, ret)
     }
 
-    /// Materialize a full memory copy (end a sequential pipeline).
+    /// Materialize a memory image (end a sequential pipeline). libvips may
+    /// share existing memory storage; safe drawing detaches it when needed.
     pub fn copy_memory(&self) -> Result<VipsImage<'a>> {
         // SAFETY: live image; libvips returns a new owned memory image.
         let ptr = unsafe { vips_sys::vips_image_copy_memory(self.c.as_ptr()) };
@@ -1413,7 +1536,7 @@ impl<'a> VipsImage<'a> {
     //
 
     /// Pixel-wise add of two images.
-    pub fn add(&self, other: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn add(&self, other: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -1428,7 +1551,7 @@ impl<'a> VipsImage<'a> {
     }
 
     /// Pixel-wise subtract.
-    pub fn subtract(&self, other: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn subtract(&self, other: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -1443,7 +1566,7 @@ impl<'a> VipsImage<'a> {
     }
 
     /// Pixel-wise multiply.
-    pub fn multiply(&self, other: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn multiply(&self, other: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -1458,7 +1581,7 @@ impl<'a> VipsImage<'a> {
     }
 
     /// Pixel-wise divide.
-    pub fn divide(&self, other: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn divide(&self, other: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -1484,7 +1607,11 @@ impl<'a> VipsImage<'a> {
 
     /// Per-band affine intensity transform (`a[i] * in + b[i]`).
     pub fn linear(&self, a: &[f64], b: &[f64]) -> Result<VipsImage<'a>> {
-        assert_eq!(a.len(), b.len(), "linear a/b length mismatch");
+        if a.is_empty() || a.len() != b.len() || a.len() > i32::MAX as usize {
+            return Err(Error::Other(
+                "linear requires equal nonempty a/b arrays with an i32 length".into(),
+            ));
+        }
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: equal-length contiguous buffers for n bands.
         let ret = unsafe {
@@ -2045,7 +2172,7 @@ impl<'a> VipsImage<'a> {
     //
 
     /// Convolve with a mask image.
-    pub fn conv(&self, mask: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn conv(&self, mask: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -2062,7 +2189,7 @@ impl<'a> VipsImage<'a> {
     /// Morphological op with a structuring element.
     pub fn morph(
         &self,
-        mask: &VipsImage,
+        mask: &VipsImage<'a>,
         op: vips_sys::VipsOperationMorphology,
     ) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
@@ -2081,7 +2208,7 @@ impl<'a> VipsImage<'a> {
 
     /// Erode with structuring element.
     #[inline]
-    pub fn erode(&self, mask: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn erode(&self, mask: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         self.morph(
             mask,
             vips_sys::VipsOperationMorphology::VIPS_OPERATION_MORPHOLOGY_ERODE,
@@ -2090,7 +2217,7 @@ impl<'a> VipsImage<'a> {
 
     /// Dilate with structuring element.
     #[inline]
-    pub fn dilate(&self, mask: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn dilate(&self, mask: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         self.morph(
             mask,
             vips_sys::VipsOperationMorphology::VIPS_OPERATION_MORPHOLOGY_DILATE,
@@ -2117,7 +2244,10 @@ impl<'a> VipsImage<'a> {
     /// `size × size` median filter.
     #[inline]
     pub fn median(&self, size: i32) -> Result<VipsImage<'a>> {
-        let index = (size * size) / 2;
+        let area = size.checked_mul(size).filter(|_| size > 0).ok_or_else(|| {
+            Error::Other("median size must be positive and its square must fit i32".into())
+        })?;
+        let index = area / 2;
         self.rank(size, size, index)
     }
 
@@ -2156,7 +2286,7 @@ impl<'a> VipsImage<'a> {
     //
 
     /// Pick pixels from `then` or `else` using this image as a 0/non-zero mask.
-    pub fn ifthenelse(&self, then: &VipsImage, els: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn ifthenelse(&self, then: &VipsImage<'a>, els: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: all three images live for the call.
         let ret = unsafe {
@@ -2394,7 +2524,7 @@ impl<'a> VipsImage<'a> {
     }
 
     /// Map each pixel through a lookup table image.
-    pub fn maplut(&self, lut: &VipsImage) -> Result<VipsImage<'a>> {
+    pub fn maplut(&self, lut: &VipsImage<'a>) -> Result<VipsImage<'a>> {
         let mut out_ptr: *mut vips_sys::VipsImage = null_mut();
         // SAFETY: both images live for the call.
         let ret = unsafe {
@@ -2455,60 +2585,55 @@ impl<'a> VipsImage<'a> {
         result_draw(ret)
     }
 
-    /// Encode the image into a freshly allocated `Vec<u8>`.
+    /// Export raw band-packed pixels into a freshly allocated `Vec<u8>`.
     ///
     /// Prefer `write_to_file` when the destination is a filesystem path — this
-    /// method always materializes a full in-memory copy.
+    /// method always materializes raw pixels and copies them into Rust memory.
+    /// Use [`Self::write_to_memory_owned`] to avoid that additional copy.
     pub fn write_to_memory(&self) -> Result<Vec<u8>> {
-        // SAFETY: libvips allocates a buffer we own and must `g_free`.
-        unsafe {
-            let mut result_size: usize = 0;
-            let ptr = vips_sys::vips_image_write_to_memory(
-                self.c.as_ptr(),
-                &mut result_size as *mut usize,
-            ) as *mut u8;
-            if ptr.is_null() {
-                return Err(Error::Vips(
-                    take_vips_error().unwrap_or_else(|| "Unknown error from libvips".to_string()),
-                ));
-            }
-            let slice = std::slice::from_raw_parts(ptr as *const u8, result_size);
-            let vec = slice.to_vec();
-            vips_sys::g_free(ptr as *mut c_void);
-            Ok(vec)
-        }
+        Ok(self.write_to_memory_owned()?.as_slice().to_vec())
     }
 
-    /// Encode to an in-memory buffer for `suffix` (e.g. `".jpg"`, `".png"`).
-    ///
-    /// Uses `vips_image_write_to_buffer` so the saver is chosen from the suffix.
+    /// Materialize raw pixels in a libvips-owned buffer without an extra Rust
+    /// allocation or full-buffer copy. Drop frees the buffer with `g_free`.
+    pub fn write_to_memory_owned(&self) -> Result<crate::VipsOwnedBuffer> {
+        let mut size = 0;
+        // SAFETY: libvips returns a newly allocated, initialized pixel buffer.
+        let ptr = unsafe { vips_sys::vips_image_write_to_memory(self.as_ptr(), &mut size) };
+        if ptr.is_null() {
+            return Err(Error::Vips(
+                take_vips_error().unwrap_or_else(|| "could not export image pixels".into()),
+            ));
+        }
+        // SAFETY: successful call transfers ownership of this g_free allocation.
+        unsafe { crate::VipsOwnedBuffer::from_raw(ptr, size) }
+    }
+
+    /// Encode to a Rust-owned buffer (e.g. `".jpg"`, `".png"`).
     pub fn write_to_buffer(&self, suffix: &str) -> Result<Vec<u8>> {
+        Ok(self.write_to_buffer_owned(suffix)?.as_slice().to_vec())
+    }
+
+    /// Encode without copying the encoded bytes into the Rust allocator.
+    pub fn write_to_buffer_owned(&self, suffix: &str) -> Result<crate::VipsOwnedBuffer> {
         let suffix = CString::new(suffix)
-            .map_err(|_| Error::InitFailed("invalid suffix: contains NUL".into()))?;
+            .map_err(|_| Error::Other("invalid suffix: contains NUL".into()))?;
         let mut buf: *mut c_void = null_mut();
-        let mut size: usize = 0;
-        // SAFETY: live image; on success libvips allocates `buf` of `size` bytes.
+        let mut size = 0;
+        // SAFETY: live image and valid output pointers; optional args end in NULL.
         let ret = unsafe {
             vips_sys::vips_image_write_to_buffer(
-                self.c.as_ptr(),
+                self.as_ptr(),
                 suffix.as_ptr(),
                 &mut buf,
                 &mut size,
                 null() as *const c_char,
             )
         };
+        // Own any returned allocation before propagating an error or empty result.
+        let buffer = unsafe { crate::VipsOwnedBuffer::from_raw(buf, size) }?;
         ffi::ret_to_result(ret)?;
-        if buf.is_null() || size == 0 {
-            return Ok(Vec::new());
-        }
-        // SAFETY: non-null buffer of `size` bytes; free with g_free after copy.
-        let out = unsafe {
-            let slice = std::slice::from_raw_parts(buf as *const u8, size);
-            let owned = slice.to_vec();
-            vips_sys::g_free(buf);
-            owned
-        };
-        Ok(out)
+        Ok(buffer)
     }
 
     /// JPEG-specific writer (quality path for `.jpg` destinations).

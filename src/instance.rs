@@ -1,11 +1,11 @@
 use crate::{Error, Result};
-use std::ffi::CString;
 use std::os::raw::c_int;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 
 static IS_INSTANTIATED: AtomicBool = AtomicBool::new(false);
 
-/// A singleton instance to manage libvips initialization and shutdown.
+/// A singleton compatibility handle for process-wide libvips initialization.
+/// Dropping it leaves libvips available to live images and other threads.
 /// # Example
 /// ```no_run
 /// use vips::*;
@@ -39,23 +39,14 @@ impl VipsInstance {
     ///     Ok(())
     /// }
     /// ```
-    /// # Safety Note
-    ///
-    /// **Shutdown Timing:**
-    /// The libvips library is automatically shut down when the `VipsInstance` is dropped (typically
-    /// at the end of `main()`). Any operations referencing libvips after this point
-    /// (such as in other static destructors or background threads) may result in undefined behavior.
-    /// To avoid this, ensure all libvips operations are completed before the `Vips
-    /// Instance` is dropped.
-    ///
+    /// Uses the same initialization lock as [`crate::init`]. Initialization
+    /// failures are returned and do not consume the singleton slot.
     pub fn new(name: &str, leak_test: bool) -> Result<VipsInstance> {
+        crate::init(Some(name))?;
         // Try to set false -> true, allowing only once
         match IS_INSTANTIATED.compare_exchange(false, true, Relaxed, Relaxed) {
             Ok(_) => {
-                let c = CString::new(name)
-                    .map_err(|e| Error::InitFailed(format!("invalid name: {e}")))?;
                 unsafe {
-                    vips_sys::vips_init(c.as_ptr());
                     if leak_test {
                         vips_sys::vips_leak_set(leak_test as c_int);
                     }
@@ -66,14 +57,5 @@ impl VipsInstance {
                 "You cannot create VipsInstance more than once.".to_string(),
             )),
         }
-    }
-}
-
-impl Drop for VipsInstance {
-    fn drop(&mut self) {
-        unsafe {
-            vips_sys::vips_shutdown();
-        }
-        // Note: libvips does not support re-initialization after shutdown, so IS_INSTANTIATED is not reset here.
     }
 }

@@ -1,30 +1,7 @@
-//! Global initialization: Ensures initialization only once with `OnceLock` and automatically shuts down when the process exits.
-//!
-//! # Safety Note
-//!
-//! **Shutdown Timing:**
-//! The libvips library is automatically shut down when the process exits, during static destructor execution (after `main()` completes).
-//! Any operations referencing libvips after `main()` returns (such as in other static destructors or background threads) may result in undefined behavior.
-//! To avoid this, ensure all libvips operations are completed before `main()` exits.
+//! Process-wide initialization. Global resources remain available for the
+//! process lifetime; Rust statics do not run destructors at process exit.
 
 use crate::{Error, Result, take_vips_error};
-use std::ffi::CString;
-use std::sync::{Mutex, OnceLock};
-
-static VIPS: OnceLock<InitGuard> = OnceLock::new();
-/// Serializes the first `vips_init` so concurrent callers cannot race the C library.
-static INIT_LOCK: Mutex<()> = Mutex::new(());
-
-pub(crate) struct InitGuard;
-
-impl Drop for InitGuard {
-    fn drop(&mut self) {
-        unsafe {
-            // Make sure libvips global resources (cache, thread pool, etc.) are released on exit
-            vips_sys::vips_shutdown();
-        }
-    }
-}
 
 /// Initialize libvips (idempotent, thread-safe). `app_name` is used for logging
 /// and diagnostics; defaults to `"vips-rs"` when `None`.
@@ -46,27 +23,20 @@ impl Drop for InitGuard {
 /// }
 /// ```
 pub fn init(app_name: Option<&str>) -> Result<()> {
-    if VIPS.get().is_some() {
+    if vips_sys::helpers::is_initialized() {
         return Ok(());
     }
 
-    // Poisoned lock still holds the mutex; recover so init cannot deadlock.
-    let _guard = INIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-
-    if VIPS.get().is_some() {
-        return Ok(());
+    let name = app_name.unwrap_or("vips-rs");
+    if name.contains('\0') {
+        return Err(Error::InitFailed("invalid app name: contains NUL".into()));
     }
-
-    let cstr = CString::new(app_name.unwrap_or("vips-rs"))
-        .map_err(|e| Error::InitFailed(format!("invalid app name: {e}")))?;
-
-    let rc = unsafe { vips_sys::vips_init(cstr.as_ptr()) };
-    if rc != 0 {
+    // Share the low-level initialization lock with direct users of helpers.
+    if vips_sys::helpers::init(name).is_err() {
         let msg = take_vips_error().unwrap_or_else(|| "vips_init() failed".to_string());
         return Err(Error::InitFailed(msg));
     }
 
-    let _ = VIPS.set(InitGuard);
     Ok(())
 }
 
@@ -87,5 +57,5 @@ pub fn init(app_name: Option<&str>) -> Result<()> {
 /// ```
 #[inline]
 pub fn is_initialized() -> bool {
-    VIPS.get().is_some()
+    vips_sys::helpers::is_initialized()
 }

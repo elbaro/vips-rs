@@ -1,6 +1,6 @@
 [package]
 name = "vips"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["elbaro <elbaro@github>", "houseme <housemecn@gmail.com>"]
 edition = "2024"
 resolver = "3"
@@ -11,10 +11,14 @@ repository = "https://github.com/houseme/vips-rs"
 categories = ["multimedia::images"]
 license = "MIT"
 
-# Published builds resolve vips-sys from crates.io. Use [patch.crates-io]
-# with a sibling path when developing against a local vips-sys checkout.
+# Local builds use the sibling checkout. Cargo packages retain the version
+# requirement for crates.io; publish vips-sys before publishing this crate.
 [dependencies]
-vips-sys = { version = "0.2.0" }
+vips-sys = { version = "0.3.0", path = "../vips-sys", features = ["helpers"] }
+
+[features]
+default = []
+v8_18 = ["vips-sys/v8_18"]
 
 [dev-dependencies]
 trybuild = "1.0"

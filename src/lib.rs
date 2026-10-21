@@ -23,6 +23,8 @@
 //! ```
 
 mod ffi;
+mod owned_buffer;
+pub use owned_buffer::VipsOwnedBuffer;
 
 pub use crate::cache::*;
 pub use crate::concurrency::{concurrency, set_concurrency};
@@ -34,9 +36,13 @@ mod instance;
 pub use instance::VipsInstance;
 
 mod image;
+#[cfg(feature = "v8_18")]
+pub use image::interpretation_bands;
 pub use image::{
     VipsImage, black, find_load, find_save, gaussnoise, grey, perlin, sines, xyz, zone,
 };
+#[cfg(feature = "v8_18")]
+pub use vips_sys::{VipsForeignKeep, VipsForeignPdfPageBox};
 
 mod interpolate;
 pub use interpolate::{VipsInterpolate, VipsInterpolateMethod};
