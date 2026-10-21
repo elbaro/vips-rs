@@ -53,8 +53,8 @@ fn main() -> Result<()> {
 
 ## 0.2.0 additions and migration
 
-This version is prepared in Git and is not yet on crates.io. It uses the published
-`vips-sys` 0.3.0 dependency; no sibling checkout is required.
+This version uses the published `vips-sys` 0.3.0 dependency;
+no sibling checkout is required.
 
 - `write_to_memory_owned` / `write_to_buffer_owned` return `VipsOwnedBuffer`,
   which owns a GLib allocation and exposes immutable bytes without the extra

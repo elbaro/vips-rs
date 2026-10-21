@@ -54,7 +54,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   needs a sibling checkout. Local development can still use `[patch.crates-io]`.
 - CI exercises 8.18 APIs on macOS and default APIs with Linux distro libraries;
   CodeQL also tracks the default `main` branch.
-- `vips` 0.2.0 remains prepared in Git without a release tag or package publication.
 
 ### Added
 

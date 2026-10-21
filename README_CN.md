@@ -53,8 +53,7 @@ fn main() -> Result<()> {
 
 ## 0.2.0 新增能力与迁移
 
-此版本仅在 Git 中准备，尚未发布到 crates.io。依赖已正式发布的 `vips-sys` 0.3.0，
-无需检出同级仓库。
+此版本依赖已正式发布的 `vips-sys` 0.3.0，无需检出同级仓库。
 
 - `write_to_memory_owned` / `write_to_buffer_owned` 返回 `VipsOwnedBuffer`，
   持有 GLib 内存并提供不可变字节切片，省去额外复制到 Rust `Vec` 的成本；原 Vec API 保留。
